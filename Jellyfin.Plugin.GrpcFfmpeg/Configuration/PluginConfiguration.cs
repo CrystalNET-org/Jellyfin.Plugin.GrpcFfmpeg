@@ -1,8 +1,6 @@
 using System.Runtime.InteropServices;
 using MediaBrowser.Model.Plugins;
 
-// Removed: using YamlDotNet.Serialization;
-
 namespace Jellyfin.Plugin.GrpcFfmpeg.Configuration
 {
     public class PluginConfiguration : BasePluginConfiguration
@@ -12,6 +10,7 @@ namespace Jellyfin.Plugin.GrpcFfmpeg.Configuration
         public bool CreateFfprobe { get; set; } = true;
         public bool CreateMediaInfo { get; set; } = true;
         public bool CreateVaInfo { get; set; } = true;
+        public bool AutoSetFfmpegPath { get; set; } = true; // New option
 
         // gRPC Client settings
         public bool UseSsl { get; set; } = false;

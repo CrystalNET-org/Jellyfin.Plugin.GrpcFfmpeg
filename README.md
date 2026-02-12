@@ -1,5 +1,12 @@
 # Jellyfin.Plugin.GrpcFfmpeg
 
+!!!DISCLAIMER!!!
+
+THIS PLUGIN IS ENTIRELY VIBE CODED; I HAVE NO IDEA WHAT I AM DOING; PROCEED AT YOUR OWN RISK
+
+!!!DISCLAIMER!!!
+
+
 This plugin deploys a static `grpc-ffmpeg` binary and creates wrapper scripts to redirect `ffmpeg` and `ffprobe` calls to it.
 
 ## Local Build Environment Setup (Arch Linux on WSL2)

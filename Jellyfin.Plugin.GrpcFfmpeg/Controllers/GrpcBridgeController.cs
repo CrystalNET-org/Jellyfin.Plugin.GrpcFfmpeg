@@ -9,13 +9,8 @@ namespace Jellyfin.Plugin.GrpcFfmpeg.Controllers
     [Route("GrpcFfmpeg")]
     public class GrpcBridgeController : ControllerBase
     {
-        // DeploymentManager is now obtained from Plugin.Instance
-        // private readonly DeploymentManager _deploymentManager;
-
-        // No longer need to inject IApplicationPaths here
         public GrpcBridgeController()
         {
-            // _deploymentManager = new DeploymentManager(appPaths);
         }
         
         [HttpGet("DeployPath")]
@@ -28,6 +23,17 @@ namespace Jellyfin.Plugin.GrpcFfmpeg.Controllers
             return new { Path = Plugin.Instance.DeployPath };
         }
 
+        [HttpGet("JellyfinFfmpegPath")] // New endpoint
+        public ActionResult<object> GetJellyfinFfmpegPath()
+        {
+            if (Plugin.Instance == null)
+            {
+                return StatusCode(503, "Plugin not initialized.");
+            }
+            // Access the injected IMediaEncoder from the Plugin instance
+            return new { Path = Plugin.Instance.MediaEncoder.EncoderPath };
+        }
+
         [HttpPost("Deploy")]
         public IActionResult Deploy()
         {
@@ -38,13 +44,11 @@ namespace Jellyfin.Plugin.GrpcFfmpeg.Controllers
                     return StatusCode(503, "Plugin not initialized.");
                 }
                 var config = Plugin.Instance.Configuration;
-                // Use the DeploymentManager instance from the plugin
                 Plugin.Instance.DeploymentManager.Deploy(config);
                 return Ok();
             }
             catch (Exception ex)
             {
-                // Provide more error details in the response
                 return StatusCode(500, new { message = ex.Message, stackTrace = ex.StackTrace });
             }
         }

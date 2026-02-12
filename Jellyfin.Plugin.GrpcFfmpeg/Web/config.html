@@ -18,10 +18,28 @@
                             <h2 class="sectionTitle">Deployment</h2>
                         </div>
                         <div class="inputContainer">
-                            <label class="inputLabel" for="deployPathDisplay">Deploy Path</label>
+                            <label class="inputLabel" for="deployPathDisplay">Plugin Deploy Path</label>
                             <div class="input" id="deployPathDisplay" readonly></div>
                             <div class="fieldDescription">
-                                This is the managed path where the binaries will be deployed. Set this path as your FFmpeg path in Jellyfin's main encoding settings.
+                                This is the managed path where the binaries will be deployed.
+                            </div>
+                        </div>
+
+                        <div class="inputContainer">
+                            <label class="inputLabel" for="jellyfinFfmpegPathDisplay">Jellyfin FFmpeg Path</label>
+                            <div class="input" id="jellyfinFfmpegPathDisplay" readonly></div>
+                            <div class="fieldDescription">
+                                This is the FFmpeg path currently configured in Jellyfin's Encoding settings.
+                            </div>
+                        </div>
+
+                        <div class="checkboxContainer checkboxContainer-withDescription">
+                            <label>
+                                <input is="emby-checkbox" type="checkbox" id="autoSetFfmpegPath" />
+                                <span>Automatically set Jellyfin's FFmpeg path</span>
+                            </label>
+                             <div class="fieldDescription checkboxFieldDescription">
+                                If checked, this plugin will automatically configure Jellyfin's FFmpeg path to point to its deployment directory on save.
                             </div>
                         </div>
 
@@ -125,6 +143,7 @@
                         page.querySelector('#createFfprobe').checked = config.CreateFfprobe;
                         page.querySelector('#createMediaInfo').checked = config.CreateMediaInfo;
                         page.querySelector('#createVaInfo').checked = config.CreateVaInfo;
+                        page.querySelector('#autoSetFfmpegPath').checked = config.AutoSetFfmpegPath; 
                         page.querySelector('#useSsl').checked = config.UseSsl;
                         page.querySelector('#grpcHost').value = config.GrpcHost || '';
                         page.querySelector('#grpcPort').value = config.GrpcPort || 0;
@@ -134,6 +153,10 @@
                     
                     fetchWithAuth('GrpcFfmpeg/DeployPath', 'GET').then(response => response.json()).then(data => {
                         page.querySelector('#deployPathDisplay').textContent = data.Path;
+                    });
+
+                    fetchWithAuth('GrpcFfmpeg/JellyfinFfmpegPath', 'GET').then(response => response.json()).then(data => {
+                        page.querySelector('#jellyfinFfmpegPathDisplay').textContent = data.Path || 'Not Set';
                         Dashboard.hideLoadingMsg();
                     });
                 }
@@ -150,6 +173,7 @@
                         config.CreateFfprobe = form.querySelector('#createFfprobe').checked;
                         config.CreateMediaInfo = form.querySelector('#createMediaInfo').checked;
                         config.CreateVaInfo = form.querySelector('#createVaInfo').checked;
+                        config.AutoSetFfmpegPath = form.querySelector('#autoSetFfmpegPath').checked; 
                         config.UseSsl = form.querySelector('#useSsl').checked;
                         config.GrpcHost = form.querySelector('#grpcHost').value;
                         config.GrpcPort = parseInt(form.querySelector('#grpcPort').value) || 0;
