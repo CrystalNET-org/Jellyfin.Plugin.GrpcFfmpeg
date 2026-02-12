@@ -24,7 +24,6 @@
                                 The absolute path where the grpc-ffmpeg binary and wrapper scripts will be deployed.
                             </div>
                         </div>
-
                         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1em;">
                             <div class="checkboxContainer checkboxContainer-withDescription">
                                 <label>
@@ -99,11 +98,31 @@
             </div>
         </div>
         <script type="text/javascript">
-            setTimeout(function() {
+            (function () {
+                'use strict';
+
                 const pluginId = "5FCE29C6-1366-41CD-9B05-6447A531B590";
                 const page = document.querySelector('#grpcFfmpegConfigPage');
 
-                page.addEventListener('pageshow', function () {
+                async function fetchWithAuth(url, method, body) {
+                    url = ApiClient.serverAddress() + "/" + url;
+
+                    const reqInit = {
+                        method: method,
+                        headers: {
+                            'Authorization': `MediaBrowser Token="${ApiClient.accessToken()}"`,
+                        },
+                        body: body,
+                    };
+
+                    if (method === "POST" && body) {
+                        reqInit.headers["Content-Type"] = "application/json";
+                    }
+
+                    return await fetch(url, reqInit);
+                }
+
+                function loadConfiguration() {
                     Dashboard.showLoadingMsg();
                     ApiClient.getPluginConfiguration(pluginId).then(config => {
                         page.querySelector('#deployPath').value = config.DeployPath || '';
@@ -118,7 +137,9 @@
                         page.querySelector('#authToken').value = config.AuthToken || '';
                         Dashboard.hideLoadingMsg();
                     });
-                });
+                }
+
+                page.addEventListener('pageshow', loadConfiguration);
 
                 page.querySelector('.grpcFfmpegConfigurationForm').addEventListener('submit', function (e) {
                     e.preventDefault();
@@ -140,7 +161,7 @@
                         return ApiClient.updatePluginConfiguration(pluginId, config);
                     }).then(result => {
                         Dashboard.processPluginConfigurationUpdateResult(result);
-                        page.dispatchEvent(new Event('pageshow'));
+                        loadConfiguration(); // Refresh data on page
                     });
                     
                     return false;
@@ -148,18 +169,25 @@
                 
                 page.querySelector('#deployButton').addEventListener('click', function () {
                     Dashboard.showLoadingMsg();
-                    ApiClient.request({
-                        url: ApiClient.getUrl('GrpcFfmpeg/Deploy'),
-                        type: 'POST'
-                    }).then(() => {
-                        Dashboard.hideLoadingMsg();
-                        Dashboard.alert({
-                            title: "Deployment Successful",
-                            text: "Binaries deployed successfully."
+                    fetchWithAuth('GrpcFfmpeg/Deploy', 'POST', null)
+                        .then(response => {
+                            Dashboard.hideLoadingMsg();
+                            if (response.ok) {
+                                Dashboard.alert({
+                                    title: "Deployment Successful",
+                                    text: "Binaries deployed successfully."
+                                });
+                            } else {
+                                response.text().then(text => {
+                                    Dashboard.alert({
+                                        title: "Deployment Error",
+                                        text: "Error deploying binaries: " + text
+                                    });
+                                });
+                            }
                         });
-                    });
                 });
-            }, 0);
+            })();
         </script>
     </div>
 </body>
