@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>gRPC Ffmpeg</title>
+    <title>gRPC-ffmpeg</title>
 </head>
 <body>
     <div id="grpcFfmpegConfigPage" data-role="page" class="page type-interior pluginConfigurationPage"
@@ -10,7 +10,7 @@
             <div class="content-primary">
                 <form class="grpcFfmpegConfigurationForm">
                     <div class="sectionTitleContainer flex align-items-center">
-                        <h2 class="sectionTitle">gRPC Ffmpeg</h2>
+                        <h2 class="sectionTitle">gRPC-ffmpeg</h2>
                     </div>
 
                     <div class="verticalSection">
@@ -56,6 +56,9 @@
                             </div>
                         </div>
                         <br/>
+                        <div class="fieldDescription" style="color: orange; margin-bottom: 1em;">
+                            <strong>Note: Click "Save" first to apply checkbox changes before deploying.</strong>
+                        </div>
                         <div>
                             <button is="emby-button" type="button" id="deployButton" class="raised button-accent block"><span>Deploy/Update Binaries & Wrappers</span></button>
                         </div>
@@ -157,6 +160,14 @@
                     }).then(result => {
                         Dashboard.processPluginConfigurationUpdateResult(result);
                         loadConfiguration(); // Refresh data on page
+                        // No need to pass a promise along anymore
+                    }).catch(error => {
+                        Dashboard.hideLoadingMsg();
+                        console.error("Save error:", error);
+                        Dashboard.alert({
+                            title: "Save Failed",
+                            text: "An error occurred while saving configuration. Please check the browser console and server logs."
+                        });
                     });
                     
                     return false;
@@ -172,6 +183,7 @@
                                     title: "Deployment Successful",
                                     text: "Binaries and wrappers updated successfully."
                                 });
+                                loadConfiguration(); // Refresh deploy path display
                             } else {
                                 response.json().then(error => {
                                     console.error("Deploy error:", error);
@@ -179,8 +191,21 @@
                                         title: "Deployment Error",
                                         text: `Error deploying binaries: ${error.message}`
                                     });
+                                }).catch(jsonError => { // Catch error if response.json() fails
+                                    console.error("Deploy error (non-JSON response):", deployResponse);
+                                    Dashboard.alert({
+                                        title: "Deployment Error",
+                                        text: "An unknown error occurred during deployment."
+                                    });
                                 });
                             }
+                        }).catch(error => {
+                            Dashboard.hideLoadingMsg();
+                            console.error("Deployment process error:", error);
+                            Dashboard.alert({
+                                title: "Error",
+                                text: "An unexpected error occurred during deployment."
+                            });
                         });
                 });
             })();

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Text.Json;
 using Jellyfin.Plugin.GrpcFfmpeg.Configuration;
+using Jellyfin.Plugin.GrpcFfmpeg.Managers;
 using MediaBrowser.Common.Configuration;
 using MediaBrowser.Common.Plugins;
 using MediaBrowser.Model.Plugins;
@@ -16,17 +17,19 @@ namespace Jellyfin.Plugin.GrpcFfmpeg
     {
         private readonly ILogger<Plugin> _logger;
         private readonly ConfigGenerator _configGenerator;
+        internal readonly DeploymentManager DeploymentManager; // Made internal for GrpcBridgeController access
         
         public string DeployPath { get; private set; }
 
         public override Guid Id => Guid.Parse("5FCE29C6-1366-41CD-9B05-6447A531B590");
-        public override string Name => "gRPC Ffmpeg";
+        public override string Name => "gRPC-ffmpeg";
 
-        public Plugin(IApplicationPaths applicationPaths, IXmlSerializer xmlSerializer, ILogger<Plugin> logger)
+        public Plugin(IApplicationPaths applicationPaths, IXmlSerializer xmlSerializer, ILogger<Plugin> logger, ILoggerFactory loggerFactory)
             : base(applicationPaths, xmlSerializer)
         {
             _logger = logger;
             _configGenerator = new ConfigGenerator();
+            DeploymentManager = new DeploymentManager(applicationPaths, loggerFactory.CreateLogger<DeploymentManager>()); // Initialized here
             DeployPath = Path.Combine(applicationPaths.ProgramDataPath, "grpc-ffmpeg");
             
             Instance = this;
@@ -35,7 +38,6 @@ namespace Jellyfin.Plugin.GrpcFfmpeg
             
             _configGenerator.GenerateGrpcConfig(DeployPath, this.Configuration);
 
-            // Log all embedded resources
             _logger.LogInformation("gRPC Ffmpeg Plugin: Listing embedded resources:");
             foreach (var resourceName in Assembly.GetExecutingAssembly().GetManifestResourceNames())
             {
@@ -57,7 +59,7 @@ namespace Jellyfin.Plugin.GrpcFfmpeg
             {
                 new PluginPageInfo
                 {
-                    Name = "gRPC Ffmpeg",
+                    Name = "gRPC-ffmpeg",
                     EmbeddedResourcePath = GetType().Namespace + ".Web.config.html",
                     EnableInMainMenu = true
                 }
