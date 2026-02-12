@@ -42,37 +42,6 @@
                                 If checked, this plugin will automatically configure Jellyfin's FFmpeg path to point to its deployment directory on save.
                             </div>
                         </div>
-
-                        <h3>Wrapped Commands</h3>
-                        <div class="fieldDescription">
-                            Select which commands should be "wrapped" by creating a copy of the gRPC binary. When Jellyfin calls one of these, it will be sent to the gRPC worker.
-                        </div>
-                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1em; margin-top: 1em;">
-                            <div class="checkboxContainer checkboxContainer-withDescription">
-                                <label>
-                                    <input is="emby-checkbox" type="checkbox" id="createFfmpeg" />
-                                    <span>ffmpeg</span>
-                                </label>
-                            </div>
-                            <div class="checkboxContainer checkboxContainer-withDescription">
-                                <label>
-                                    <input is="emby-checkbox" type="checkbox" id="createFfprobe" />
-                                    <span>ffprobe</span>
-                                </label>
-                            </div>
-                            <div class="checkboxContainer checkboxContainer-withDescription">
-                                <label>
-                                    <input is="emby-checkbox" type="checkbox" id="createMediaInfo" />
-                                    <span>mediainfo</span>
-                                </label>
-                            </div>
-                            <div class="checkboxContainer checkboxContainer-withDescription">
-                                <label>
-                                    <input is="emby-checkbox" type="checkbox" id="createVaInfo" />
-                                    <span>vainfo</span>
-                                </label>
-                            </div>
-                        </div>
                         <br/>
                         <div class="fieldDescription" style="color: orange; margin-bottom: 1em;">
                             <strong>Note: Click "Save" first to apply checkbox changes before deploying.</strong>
@@ -139,10 +108,12 @@
                 function loadConfiguration() {
                     Dashboard.showLoadingMsg();
                     ApiClient.getPluginConfiguration(pluginId).then(config => {
-                        page.querySelector('#createFfmpeg').checked = config.CreateFfmpeg;
-                        page.querySelector('#createFfprobe').checked = config.CreateFfprobe;
-                        page.querySelector('#createMediaInfo').checked = config.CreateMediaInfo;
-                        page.querySelector('#createVaInfo').checked = config.CreateVaInfo;
+                        // All wrapper creation checkboxes are now internal to the plugin and hardcoded to true
+                        // page.querySelector('#createFfmpeg').checked = config.CreateFfmpeg;
+                        // page.querySelector('#createFfprobe').checked = config.CreateFfprobe;
+                        // page.querySelector('#createMediaInfo').checked = config.CreateMediaInfo;
+                        // page.querySelector('#createVaInfo').checked = config.CreateVaInfo;
+                        
                         page.querySelector('#autoSetFfmpegPath').checked = config.AutoSetFfmpegPath; 
                         page.querySelector('#useSsl').checked = config.UseSsl;
                         page.querySelector('#grpcHost').value = config.GrpcHost || '';
@@ -169,10 +140,12 @@
                     const form = this;
 
                     ApiClient.getPluginConfiguration(pluginId).then(config => {
-                        config.CreateFfmpeg = form.querySelector('#createFfmpeg').checked;
-                        config.CreateFfprobe = form.querySelector('#createFfprobe').checked;
-                        config.CreateMediaInfo = form.querySelector('#createMediaInfo').checked;
-                        config.CreateVaInfo = form.querySelector('#createVaInfo').checked;
+                        // These are now internally managed by the plugin and hardcoded to true
+                        // config.CreateFfmpeg = form.querySelector('#createFfmpeg').checked;
+                        // config.CreateFfprobe = form.querySelector('#createFfprobe').checked;
+                        // config.CreateMediaInfo = form.querySelector('#createMediaInfo').checked;
+                        // config.CreateVaInfo = form.querySelector('#createVaInfo').checked;
+                        
                         config.AutoSetFfmpegPath = form.querySelector('#autoSetFfmpegPath').checked; 
                         config.UseSsl = form.querySelector('#useSsl').checked;
                         config.GrpcHost = form.querySelector('#grpcHost').value;

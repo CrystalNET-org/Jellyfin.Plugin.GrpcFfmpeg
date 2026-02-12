@@ -5,12 +5,8 @@ namespace Jellyfin.Plugin.GrpcFfmpeg.Configuration
 {
     public class PluginConfiguration : BasePluginConfiguration
     {
-        // Wrapper settings
-        public bool CreateFfmpeg { get; set; } = true;
-        public bool CreateFfprobe { get; set; } = true;
-        public bool CreateMediaInfo { get; set; } = true;
-        public bool CreateVaInfo { get; set; } = true;
-        public bool AutoSetFfmpegPath { get; set; } = true; // New option
+        // Wrapper settings (removed individual Create... flags, these will be hardcoded in DeploymentManager)
+        public bool AutoSetFfmpegPath { get; set; } = false;
 
         // gRPC Client settings
         public bool UseSsl { get; set; } = false;

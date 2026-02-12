@@ -38,11 +38,11 @@ namespace Jellyfin.Plugin.GrpcFfmpeg.Managers
                 MakeExecutable(binaryPath);
             }
 
-            // Create/delete copies or symlinks
-            UpdateWrapper("ffmpeg", config.CreateFfmpeg, binaryName);
-            UpdateWrapper("ffprobe", config.CreateFfprobe, binaryName);
-            UpdateWrapper("mediainfo", config.CreateMediaInfo, binaryName);
-            UpdateWrapper("vainfo", config.CreateVaInfo, binaryName);
+            // Hardcode to always create these wrappers
+            UpdateWrapper("ffmpeg", true, binaryName);
+            UpdateWrapper("ffprobe", true, binaryName);
+            UpdateWrapper("mediainfo", true, binaryName);
+            UpdateWrapper("vainfo", true, binaryName);
             _logger.LogInformation("Deployment completed.");
         }
         
@@ -51,7 +51,7 @@ namespace Jellyfin.Plugin.GrpcFfmpeg.Managers
             var wrapperPath = Path.Combine(_deployPath, _isWindows ? $"{wrapperName}.exe" : wrapperName);
             _logger.LogInformation("Updating wrapper {WrapperName}. Path: {WrapperPath}, ShouldExist: {ShouldExist}", wrapperName, wrapperPath, shouldExist);
 
-            if (shouldExist)
+            if (shouldExist) // This will always be true now for hardcoded wrappers
             {
                 if (_isWindows)
                 {
@@ -64,7 +64,7 @@ namespace Jellyfin.Plugin.GrpcFfmpeg.Managers
                     CreateLinuxSymlink(wrapperPath, targetBinaryName);
                 }
             }
-            else
+            else // This block will no longer be reached for the hardcoded wrappers
             {
                 if (File.Exists(wrapperPath))
                 {
@@ -141,7 +141,15 @@ namespace Jellyfin.Plugin.GrpcFfmpeg.Managers
             _logger.LogInformation("Making {Path} executable.", path);
             var process = new Process
             {
-                StartInfo = new ProcessStartInfo { FileName = "/bin/chmod", Arguments = $"+x \"{path}\"", RedirectStandardOutput = true, RedirectStandardError = true, UseShellExecute = false, CreateNoWindow = true }
+                StartInfo = new ProcessStartInfo
+                { 
+                    FileName = "/bin/chmod", 
+                    Arguments = $"+x \"{path}\"", 
+                    RedirectStandardOutput = true, 
+                    RedirectStandardError = true, 
+                    UseShellExecute = false, 
+                    CreateNoWindow = true 
+                }
             };
             process.Start();
             process.WaitForExit();
