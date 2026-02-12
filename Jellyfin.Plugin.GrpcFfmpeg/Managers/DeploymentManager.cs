@@ -44,8 +44,6 @@ namespace Jellyfin.Plugin.GrpcFfmpeg.Managers
                 new EnvVar { Key = "AUTH_TOKEN", Value = config.AuthToken }
             };
 
-            // Removed logic for ExtraEnvVars
-
             if (isWindows)
             {
                 GenerateWindowsWrapperScript(scriptPath, binaryName, allEnvVars);
@@ -68,16 +66,26 @@ namespace Jellyfin.Plugin.GrpcFfmpeg.Managers
                 var symlinkPath = Path.Combine(config.DeployPath, isWindows ? "ffprobe.bat" : "ffprobe");
                 CreateSymlink(symlinkPath, scriptName, isWindows);
             }
+
+            if (config.SymlinkMediaInfo)
+            {
+                var symlinkPath = Path.Combine(config.DeployPath, isWindows ? "mediainfo.bat" : "mediainfo");
+                CreateSymlink(symlinkPath, scriptName, isWindows);
+            }
+
+            if (config.SymlinkVaInfo)
+            {
+                var symlinkPath = Path.Combine(config.DeployPath, isWindows ? "vainfo.bat" : "vainfo");
+                CreateSymlink(symlinkPath, scriptName, isWindows);
+            }
         }
         
-        // This is now only used internally by this class
         private class EnvVar 
         {
             public string? Key { get; set; }
             public string? Value { get; set; }
         }
 
-        // ... other methods are the same ...
         private void GenerateWindowsWrapperScript(string scriptPath, string binaryName, List<EnvVar> envVars)
         {
             var scriptContent = new StringBuilder();

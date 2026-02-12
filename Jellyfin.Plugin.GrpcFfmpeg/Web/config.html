@@ -24,17 +24,32 @@
                                 The absolute path where the grpc-ffmpeg binary and wrapper scripts will be deployed.
                             </div>
                         </div>
-                        <div class="checkboxContainer checkboxContainer-withDescription">
-                            <label>
-                                <input is="emby-checkbox" type="checkbox" id="symlinkFFmpeg" />
-                                <span>Create ffmpeg symlink</span>
-                            </label>
-                        </div>
-                        <div class="checkboxContainer checkboxContainer-withDescription">
-                            <label>
-                                <input is="emby-checkbox" type="checkbox" id="symlinkFFprobe" />
-                                <span>Create ffprobe symlink</span>
-                            </label>
+
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1em;">
+                            <div class="checkboxContainer checkboxContainer-withDescription">
+                                <label>
+                                    <input is="emby-checkbox" type="checkbox" id="symlinkFFmpeg" />
+                                    <span>Create ffmpeg symlink</span>
+                                </label>
+                            </div>
+                            <div class="checkboxContainer checkboxContainer-withDescription">
+                                <label>
+                                    <input is="emby-checkbox" type="checkbox" id="symlinkFFprobe" />
+                                    <span>Create ffprobe symlink</span>
+                                </label>
+                            </div>
+                            <div class="checkboxContainer checkboxContainer-withDescription">
+                                <label>
+                                    <input is="emby-checkbox" type="checkbox" id="symlinkMediaInfo" />
+                                    <span>Create mediainfo symlink</span>
+                                </label>
+                            </div>
+                            <div class="checkboxContainer checkboxContainer-withDescription">
+                                <label>
+                                    <input is="emby-checkbox" type="checkbox" id="symlinkVaInfo" />
+                                    <span>Create vainfo symlink</span>
+                                </label>
+                            </div>
                         </div>
                     </div>
 
@@ -94,6 +109,8 @@
                         page.querySelector('#deployPath').value = config.DeployPath || '';
                         page.querySelector('#symlinkFFmpeg').checked = config.SymlinkFFmpeg;
                         page.querySelector('#symlinkFFprobe').checked = config.SymlinkFFprobe;
+                        page.querySelector('#symlinkMediaInfo').checked = config.SymlinkMediaInfo;
+                        page.querySelector('#symlinkVaInfo').checked = config.SymlinkVaInfo;
                         page.querySelector('#useSsl').checked = config.UseSsl;
                         page.querySelector('#grpcHost').value = config.GrpcHost || '';
                         page.querySelector('#grpcPort').value = config.GrpcPort || 0;
@@ -112,6 +129,8 @@
                         config.DeployPath = form.querySelector('#deployPath').value;
                         config.SymlinkFFmpeg = form.querySelector('#symlinkFFmpeg').checked;
                         config.SymlinkFFprobe = form.querySelector('#symlinkFFprobe').checked;
+                        config.SymlinkMediaInfo = form.querySelector('#symlinkMediaInfo').checked;
+                        config.SymlinkVaInfo = form.querySelector('#symlinkVaInfo').checked;
                         config.UseSsl = form.querySelector('#useSsl').checked;
                         config.GrpcHost = form.querySelector('#grpcHost').value;
                         config.GrpcPort = parseInt(form.querySelector('#grpcPort').value) || 0;
