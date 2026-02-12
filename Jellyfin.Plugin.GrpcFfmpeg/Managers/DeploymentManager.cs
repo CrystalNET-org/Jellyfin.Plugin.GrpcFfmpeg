@@ -50,39 +50,15 @@ namespace Jellyfin.Plugin.GrpcFfmpeg.Managers
         {
             var wrapperPath = Path.Combine(_deployPath, _isWindows ? $"{wrapperName}.exe" : wrapperName);
             _logger.LogInformation("Updating wrapper {WrapperName}. Path: {WrapperPath}, ShouldExist: {ShouldExist}", wrapperName, wrapperPath, shouldExist);
-
-            if (shouldExist) // This will always be true now for hardcoded wrappers
+            if (_isWindows)
             {
-                if (_isWindows)
-                {
-                    _logger.LogInformation("Creating Windows wrapper (copy) at {WrapperPath} pointing to {TargetBinaryName}", wrapperPath, targetBinaryName);
-                    File.Copy(Path.Combine(_deployPath, targetBinaryName), wrapperPath, true);
-                }
-                else
-                {
-                    _logger.LogInformation("Creating Linux symlink at {WrapperPath} pointing to {TargetBinaryName}", wrapperPath, targetBinaryName);
-                    CreateLinuxSymlink(wrapperPath, targetBinaryName);
-                }
+                _logger.LogInformation("Creating Windows wrapper (copy) at {WrapperPath} pointing to {TargetBinaryName}", wrapperPath, targetBinaryName);
+                File.Copy(Path.Combine(_deployPath, targetBinaryName), wrapperPath, true);
             }
-            else // This block will no longer be reached for the hardcoded wrappers
+            else
             {
-                if (File.Exists(wrapperPath))
-                {
-                    _logger.LogInformation("Wrapper {WrapperName} should not exist. Deleting {WrapperPath}", wrapperName, wrapperPath);
-                    try
-                    {
-                        File.Delete(wrapperPath);
-                        _logger.LogInformation("Successfully deleted {WrapperPath}", wrapperPath);
-                    }
-                    catch (Exception ex)
-                    {
-                        _logger.LogError(ex, "Failed to delete {WrapperPath}", wrapperPath);
-                    }
-                }
-                else
-                {
-                    _logger.LogInformation("Wrapper {WrapperName} does not exist at {WrapperPath}, no deletion needed.", wrapperName, wrapperPath);
-                }
+                _logger.LogInformation("Creating Linux symlink at {WrapperPath} pointing to {TargetBinaryName}", wrapperPath, targetBinaryName);
+                CreateLinuxSymlink(wrapperPath, targetBinaryName);
             }
         }
         
