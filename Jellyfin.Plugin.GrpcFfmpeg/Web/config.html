@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>gRPC Ffmpeg</title>
+</head>
+<body>
+    <div id="grpcFfmpegConfigPage" data-role="page" class="page type-interior pluginConfigurationPage"
+         data-require="emby-input,emby-button,emby-checkbox,emby-select">
+        <div data-role="content">
+            <div class="content-primary">
+                <form class="grpcFfmpegConfigurationForm">
+                    <div class="sectionTitleContainer flex align-items-center">
+                        <h2 class="sectionTitle">gRPC Ffmpeg</h2>
+                    </div>
+
+                    <div class="verticalSection">
+                        <div class="sectionTitleContainer flex align-items-center">
+                            <h2 class="sectionTitle">Deployment</h2>
+                        </div>
+                        <div class="inputContainer">
+                            <label class="inputLabel inputLabelUnfocused" for="deployPath">Deploy Path</label>
+                            <input type="text" id="deployPath" name="deployPath" is="emby-input" />
+                            <div class="fieldDescription">
+                                The absolute path where the grpc-ffmpeg binary and wrapper scripts will be deployed.
+                            </div>
+                        </div>
+                        <div class="checkboxContainer checkboxContainer-withDescription">
+                            <label>
+                                <input is="emby-checkbox" type="checkbox" id="symlinkFFmpeg" />
+                                <span>Create ffmpeg symlink</span>
+                            </label>
+                        </div>
+                        <div class="checkboxContainer checkboxContainer-withDescription">
+                            <label>
+                                <input is="emby-checkbox" type="checkbox" id="symlinkFFprobe" />
+                                <span>Create ffprobe symlink</span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <div class="verticalSection">
+                        <div class="sectionTitleContainer flex align-items-center">
+                            <h2 class="sectionTitle">gRPC Client Settings</h2>
+                        </div>
+                        <div class="checkboxContainer checkboxContainer-withDescription">
+                            <label>
+                                <input is="emby-checkbox" type="checkbox" id="useSsl" />
+                                <span>Use SSL</span>
+                            </label>
+                             <div class="fieldDescription checkboxFieldDescription">
+                                Whether to use SSL for the gRPC client connection. (Env: USE_SSL)
+                            </div>
+                        </div>
+                        <div class="inputContainer">
+                            <label class="inputLabel inputLabelUnfocused" for="grpcHost">gRPC Host</label>
+                            <input type="text" id="grpcHost" is="emby-input" />
+                            <div class="fieldDescription">The hostname for the gRPC client to connect to. (Env: GRPC_HOST)</div>
+                        </div>
+                         <div class="inputContainer">
+                            <label class="inputLabel inputLabelUnfocused" for="grpcPort">gRPC Port</label>
+                            <input type="number" id="grpcPort" is="emby-input" />
+                            <div class="fieldDescription">The port for the gRPC client to connect to. (Env: GRPC_PORT)</div>
+                        </div>
+                        <div class="inputContainer">
+                            <label class="inputLabel inputLabelUnfocused" for="certificatePath">Certificate Path</label>
+                            <input type="text" id="certificatePath" is="emby-input" />
+                            <div class="fieldDescription">The path to the SSL certificate for the client. (Env: CERTIFICATE_PATH)</div>
+                        </div>
+                        <div class="inputContainer">
+                            <label class="inputLabel inputLabelUnfocused" for="authToken">Authentication Token</label>
+                            <input type="password" id="authToken" is="emby-input" />
+                            <div class="fieldDescription">The authentication token for the client. (Env: AUTH_TOKEN)</div>
+                        </div>
+                    </div>
+
+                    <div>
+                        <button is="emby-button" type="submit" class="raised button-submit block"><span>Save</span></button>
+                    </div>
+                    <br/>
+                    <div>
+                         <button is="emby-button" type="button" id="deployButton" class="raised button-accent block"><span>Deploy Binaries</span></button>
+                    </div>
+                </form>
+            </div>
+        </div>
+        <script type="text/javascript">
+            setTimeout(function() {
+                const pluginId = "5FCE29C6-1366-41CD-9B05-6447A531B590";
+                const page = document.querySelector('#grpcFfmpegConfigPage');
+
+                page.addEventListener('pageshow', function () {
+                    Dashboard.showLoadingMsg();
+                    ApiClient.getPluginConfiguration(pluginId).then(config => {
+                        page.querySelector('#deployPath').value = config.DeployPath || '';
+                        page.querySelector('#symlinkFFmpeg').checked = config.SymlinkFFmpeg;
+                        page.querySelector('#symlinkFFprobe').checked = config.SymlinkFFprobe;
+                        page.querySelector('#useSsl').checked = config.UseSsl;
+                        page.querySelector('#grpcHost').value = config.GrpcHost || '';
+                        page.querySelector('#grpcPort').value = config.GrpcPort || 0;
+                        page.querySelector('#certificatePath').value = config.CertificatePath || '';
+                        page.querySelector('#authToken').value = config.AuthToken || '';
+                        Dashboard.hideLoadingMsg();
+                    });
+                });
+
+                page.querySelector('.grpcFfmpegConfigurationForm').addEventListener('submit', function (e) {
+                    e.preventDefault();
+                    Dashboard.showLoadingMsg();
+                    const form = this;
+
+                    ApiClient.getPluginConfiguration(pluginId).then(config => {
+                        config.DeployPath = form.querySelector('#deployPath').value;
+                        config.SymlinkFFmpeg = form.querySelector('#symlinkFFmpeg').checked;
+                        config.SymlinkFFprobe = form.querySelector('#symlinkFFprobe').checked;
+                        config.UseSsl = form.querySelector('#useSsl').checked;
+                        config.GrpcHost = form.querySelector('#grpcHost').value;
+                        config.GrpcPort = parseInt(form.querySelector('#grpcPort').value) || 0;
+                        config.CertificatePath = form.querySelector('#certificatePath').value;
+                        config.AuthToken = form.querySelector('#authToken').value;
+
+                        return ApiClient.updatePluginConfiguration(pluginId, config);
+                    }).then(result => {
+                        Dashboard.processPluginConfigurationUpdateResult(result);
+                        page.dispatchEvent(new Event('pageshow'));
+                    });
+                    
+                    return false;
+                });
+                
+                page.querySelector('#deployButton').addEventListener('click', function () {
+                    Dashboard.showLoadingMsg();
+                    ApiClient.request({
+                        url: ApiClient.getUrl('GrpcFfmpeg/Deploy'),
+                        type: 'POST'
+                    }).then(() => {
+                        Dashboard.hideLoadingMsg();
+                        Dashboard.alert({
+                            title: "Deployment Successful",
+                            text: "Binaries deployed successfully."
+                        });
+                    });
+                });
+            }, 0);
+        </script>
+    </div>
+</body>
+</html>

@@ -1,0 +1,8 @@
+[
+  {
+    "category": "gRPC Ffmpeg",
+    "version": "0.1.0",
+    "checksum": "place-checksum-here",
+    "url": "https://github.com/your-username/Jellyfin.Plugin.GrpcFfmpeg/releases/download/v0.1.0/Jellyfin.Plugin.GrpcFfmpeg_0.1.0.zip"
+  }
+]
