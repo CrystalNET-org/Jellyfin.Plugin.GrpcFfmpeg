@@ -5,7 +5,6 @@ using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Runtime.InteropServices;
-using System.Text;
 using Jellyfin.Plugin.GrpcFfmpeg.Configuration;
 using MediaBrowser.Common.Configuration;
 
@@ -13,96 +12,63 @@ namespace Jellyfin.Plugin.GrpcFfmpeg.Managers
 {
     public class DeploymentManager
     {
-        public DeploymentManager() 
+        private readonly string _deployPath;
+        private readonly bool _isWindows;
+
+        public DeploymentManager(IApplicationPaths appPaths)
         {
+            _deployPath = Path.Combine(appPaths.ProgramDataPath, "grpc-ffmpeg"); // Corrected Path
+            _isWindows = RuntimeInformation.IsOSPlatform(OSPlatform.Windows);
         }
 
         public void Deploy(PluginConfiguration config)
         {
-            if (string.IsNullOrWhiteSpace(config.DeployPath))
+            Directory.CreateDirectory(_deployPath);
+
+            // 1. Deploy the core binary
+            var (resourceName, binaryName) = GetPlatformAwareBinaryNames();
+            var binaryPath = Path.Combine(_deployPath, binaryName);
+            ExtractEmbeddedResource(resourceName, binaryPath);
+            if (!_isWindows)
             {
-                throw new ArgumentException("Deploy path cannot be empty.");
+                MakeExecutable(binaryPath);
             }
 
-            Directory.CreateDirectory(config.DeployPath);
+            // 2. Create/delete copies or symlinks
+            UpdateWrapper("ffmpeg", config.CreateFfmpeg, binaryName);
+            UpdateWrapper("ffprobe", config.CreateFfprobe, binaryName);
+            UpdateWrapper("mediainfo", config.CreateMediaInfo, binaryName);
+            UpdateWrapper("vainfo", config.CreateVaInfo, binaryName);
+        }
+        
+        private void UpdateWrapper(string wrapperName, bool shouldExist, string targetBinaryName)
+        {
+            var wrapperPath = Path.Combine(_deployPath, _isWindows ? $"{wrapperName}.exe" : wrapperName);
 
-            var (resourceName, binaryName) = GetPlatformAwareBinaryNames();
-            var binaryPath = Path.Combine(config.DeployPath, binaryName);
-
-            ExtractEmbeddedResource(resourceName, binaryPath);
-
-            var isWindows = RuntimeInformation.IsOSPlatform(OSPlatform.Windows);
-            var scriptName = isWindows ? "grpc-wrapper.bat" : "grpc-wrapper.sh";
-            var scriptPath = Path.Combine(config.DeployPath, scriptName);
-            
-            var allEnvVars = new List<EnvVar>
+            if (shouldExist)
             {
-                new EnvVar { Key = "USE_SSL", Value = config.UseSsl.ToString().ToLower() },
-                new EnvVar { Key = "GRPC_HOST", Value = config.GrpcHost },
-                new EnvVar { Key = "GRPC_PORT", Value = config.GrpcPort.ToString() },
-                new EnvVar { Key = "CERTIFICATE_PATH", Value = config.CertificatePath },
-                new EnvVar { Key = "AUTH_TOKEN", Value = config.AuthToken }
-            };
-
-            if (isWindows)
-            {
-                GenerateWindowsWrapperScript(scriptPath, binaryName, allEnvVars);
+                if (_isWindows)
+                {
+                    File.Copy(Path.Combine(_deployPath, targetBinaryName), wrapperPath, true);
+                }
+                else
+                {
+                    CreateLinuxSymlink(wrapperPath, targetBinaryName);
+                }
             }
             else
             {
-                MakeExecutable(binaryPath);
-                GenerateUnixWrapperScript(scriptPath, binaryName, allEnvVars);
-                MakeExecutable(scriptPath);
+                if (File.Exists(wrapperPath))
+                {
+                    File.Delete(wrapperPath);
+                }
             }
-
-            if (config.SymlinkFFmpeg)
-            {
-                var symlinkPath = Path.Combine(config.DeployPath, isWindows ? "ffmpeg.bat" : "ffmpeg");
-                CreateSymlink(symlinkPath, scriptName, isWindows);
-            }
-
-            if (config.SymlinkFFprobe)
-            {
-                var symlinkPath = Path.Combine(config.DeployPath, isWindows ? "ffprobe.bat" : "ffprobe");
-                CreateSymlink(symlinkPath, scriptName, isWindows);
-            }
-
-            if (config.SymlinkMediaInfo)
-            {
-                var symlinkPath = Path.Combine(config.DeployPath, isWindows ? "mediainfo.bat" : "mediainfo");
-                CreateSymlink(symlinkPath, scriptName, isWindows);
-            }
-
-            if (config.SymlinkVaInfo)
-            {
-                var symlinkPath = Path.Combine(config.DeployPath, isWindows ? "vainfo.bat" : "vainfo");
-                CreateSymlink(symlinkPath, scriptName, isWindows);
-            }
-        }
-        
-        private class EnvVar 
-        {
-            public string? Key { get; set; }
-            public string? Value { get; set; }
-        }
-
-        private void GenerateWindowsWrapperScript(string scriptPath, string binaryName, List<EnvVar> envVars)
-        {
-            var scriptContent = new StringBuilder();
-            scriptContent.AppendLine("@echo off");
-            foreach (var envVar in envVars.Where(ev => !string.IsNullOrEmpty(ev.Key)))
-            {
-                scriptContent.AppendLine($"set {envVar.Key}={envVar.Value}");
-            }
-            scriptContent.AppendLine($"{binaryName} %*");
-            File.WriteAllText(scriptPath, scriptContent.ToString());
         }
         
         private (string resourceName, string binaryName) GetPlatformAwareBinaryNames()
         {
             string os, arch, ext;
-
-            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+            if (_isWindows)
             {
                 os = "windows";
                 ext = ".exe";
@@ -140,88 +106,39 @@ namespace Jellyfin.Plugin.GrpcFfmpeg.Managers
             using var resourceStream = Assembly.GetExecutingAssembly().GetManifestResourceStream(resourceName);
             if (resourceStream == null)
             {
-                throw new FileNotFoundException($"Embedded resource not found: {resourceName}. This can happen if the platform is not supported.");
+                throw new FileNotFoundException($"Embedded resource not found: {resourceName}.");
             }
             using var fileStream = new FileStream(destinationPath, FileMode.Create, FileAccess.Write);
             resourceStream.CopyTo(fileStream);
         }
 
-        private void GenerateUnixWrapperScript(string scriptPath, string binaryName, List<EnvVar> envVars)
-        {
-            var scriptContent = new StringBuilder();
-            scriptContent.AppendLine("#!/bin/bash");
-            foreach (var envVar in envVars.Where(ev => !string.IsNullOrEmpty(ev.Key)))
-            {
-                scriptContent.AppendLine($"export {envVar.Key}=\"{envVar.Value}\"");
-            }
-            scriptContent.AppendLine($"exec ./{binaryName} \"$@\"");
-            File.WriteAllText(scriptPath, scriptContent.ToString());
-        }
-
         private void MakeExecutable(string path)
         {
-            if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+            var process = new Process
             {
-                var process = new Process
-                {
-                    StartInfo = new ProcessStartInfo
-                    {
-                        FileName = "/bin/chmod",
-                        Arguments = $"+x \"{path}\"",
-                        RedirectStandardOutput = true,
-                        RedirectStandardError = true,
-                        UseShellExecute = false,
-                        CreateNoWindow = true
-                    }
-                };
-                process.Start();
-                process.WaitForExit();
-            }
+                StartInfo = new ProcessStartInfo { FileName = "/bin/chmod", Arguments = $"+x \"{path}\"" }
+            };
+            process.Start();
+            process.WaitForExit();
         }
 
-        private void CreateSymlink(string symlinkPath, string targetName, bool isWindows)
+        private void CreateLinuxSymlink(string symlinkPath, string targetName)
         {
-            if (File.Exists(symlinkPath))
+             if (File.Exists(symlinkPath))
             {
                 File.Delete(symlinkPath);
             }
-
-            if (isWindows)
+            var process = new Process
             {
-                var process = new Process
+                StartInfo = new ProcessStartInfo
                 {
-                    StartInfo = new ProcessStartInfo
-                    {
-                        FileName = "cmd.exe",
-                        Arguments = $"/c mklink \"{symlinkPath}\" \"{targetName}\"",
-                        RedirectStandardOutput = true,
-                        RedirectStandardError = true,
-                        UseShellExecute = false,
-                        CreateNoWindow = true,
-                        WorkingDirectory = Path.GetDirectoryName(symlinkPath)
-                    }
-                };
-                process.Start();
-                process.WaitForExit();
-            }
-            else
-            {
-                var process = new Process
-                {
-                    StartInfo = new ProcessStartInfo
-                    {
-                        FileName = "/bin/ln",
-                        Arguments = $"-sf \"{targetName}\" \"{symlinkPath}\"",
-                        RedirectStandardOutput = true,
-                        RedirectStandardError = true,
-                        UseShellExecute = false,
-                        CreateNoWindow = true,
-                        WorkingDirectory = Path.GetDirectoryName(symlinkPath)
-                    }
-                };
-                process.Start();
-                process.WaitForExit();
-            }
+                    FileName = "/bin/ln",
+                    Arguments = $"-sf \"{targetName}\" \"{symlinkPath}\"",
+                    WorkingDirectory = Path.GetDirectoryName(symlinkPath)
+                }
+            };
+            process.Start();
+            process.WaitForExit();
         }
     }
 }

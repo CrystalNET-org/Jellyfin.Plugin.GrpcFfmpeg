@@ -18,81 +18,79 @@
                             <h2 class="sectionTitle">Deployment</h2>
                         </div>
                         <div class="inputContainer">
-                            <label class="inputLabel inputLabelUnfocused" for="deployPath">Deploy Path</label>
-                            <input type="text" id="deployPath" name="deployPath" is="emby-input" />
+                            <label class="inputLabel" for="deployPathDisplay">Deploy Path</label>
+                            <div class="input" id="deployPathDisplay" readonly></div>
                             <div class="fieldDescription">
-                                The absolute path where the grpc-ffmpeg binary and wrapper scripts will be deployed.
+                                This is the managed path where the binaries will be deployed. Set this path as your FFmpeg path in Jellyfin's main encoding settings.
                             </div>
                         </div>
-                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1em;">
+
+                        <h3>Wrapped Commands</h3>
+                        <div class="fieldDescription">
+                            Select which commands should be "wrapped" by creating a copy of the gRPC binary. When Jellyfin calls one of these, it will be sent to the gRPC worker.
+                        </div>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1em; margin-top: 1em;">
                             <div class="checkboxContainer checkboxContainer-withDescription">
                                 <label>
-                                    <input is="emby-checkbox" type="checkbox" id="symlinkFFmpeg" />
-                                    <span>Create ffmpeg symlink</span>
+                                    <input is="emby-checkbox" type="checkbox" id="createFfmpeg" />
+                                    <span>ffmpeg</span>
                                 </label>
                             </div>
                             <div class="checkboxContainer checkboxContainer-withDescription">
                                 <label>
-                                    <input is="emby-checkbox" type="checkbox" id="symlinkFFprobe" />
-                                    <span>Create ffprobe symlink</span>
+                                    <input is="emby-checkbox" type="checkbox" id="createFfprobe" />
+                                    <span>ffprobe</span>
                                 </label>
                             </div>
                             <div class="checkboxContainer checkboxContainer-withDescription">
                                 <label>
-                                    <input is="emby-checkbox" type="checkbox" id="symlinkMediaInfo" />
-                                    <span>Create mediainfo symlink</span>
+                                    <input is="emby-checkbox" type="checkbox" id="createMediaInfo" />
+                                    <span>mediainfo</span>
                                 </label>
                             </div>
                             <div class="checkboxContainer checkboxContainer-withDescription">
                                 <label>
-                                    <input is="emby-checkbox" type="checkbox" id="symlinkVaInfo" />
-                                    <span>Create vainfo symlink</span>
+                                    <input is="emby-checkbox" type="checkbox" id="createVaInfo" />
+                                    <span>vainfo</span>
                                 </label>
                             </div>
+                        </div>
+                        <br/>
+                        <div>
+                            <button is="emby-button" type="button" id="deployButton" class="raised button-accent block"><span>Deploy/Update Binaries & Wrappers</span></button>
                         </div>
                     </div>
 
                     <div class="verticalSection">
                         <div class="sectionTitleContainer flex align-items-center">
-                            <h2 class="sectionTitle">gRPC Client Settings</h2>
+                            <h2 class="sectionTitle">gRPC Worker Configuration (config.yml)</h2>
                         </div>
                         <div class="checkboxContainer checkboxContainer-withDescription">
                             <label>
                                 <input is="emby-checkbox" type="checkbox" id="useSsl" />
                                 <span>Use SSL</span>
                             </label>
-                             <div class="fieldDescription checkboxFieldDescription">
-                                Whether to use SSL for the gRPC client connection. (Env: USE_SSL)
-                            </div>
                         </div>
                         <div class="inputContainer">
                             <label class="inputLabel inputLabelUnfocused" for="grpcHost">gRPC Host</label>
                             <input type="text" id="grpcHost" is="emby-input" />
-                            <div class="fieldDescription">The hostname for the gRPC client to connect to. (Env: GRPC_HOST)</div>
                         </div>
                          <div class="inputContainer">
                             <label class="inputLabel inputLabelUnfocused" for="grpcPort">gRPC Port</label>
                             <input type="number" id="grpcPort" is="emby-input" />
-                            <div class="fieldDescription">The port for the gRPC client to connect to. (Env: GRPC_PORT)</div>
                         </div>
                         <div class="inputContainer">
                             <label class="inputLabel inputLabelUnfocused" for="certificatePath">Certificate Path</label>
                             <input type="text" id="certificatePath" is="emby-input" />
-                            <div class="fieldDescription">The path to the SSL certificate for the client. (Env: CERTIFICATE_PATH)</div>
                         </div>
                         <div class="inputContainer">
                             <label class="inputLabel inputLabelUnfocused" for="authToken">Authentication Token</label>
                             <input type="password" id="authToken" is="emby-input" />
-                            <div class="fieldDescription">The authentication token for the client. (Env: AUTH_TOKEN)</div>
                         </div>
                     </div>
 
                     <div>
                         <button is="emby-button" type="submit" class="raised button-submit block"><span>Save</span></button>
-                    </div>
-                    <br/>
-                    <div>
-                         <button is="emby-button" type="button" id="deployButton" class="raised button-accent block"><span>Deploy Binaries</span></button>
                     </div>
                 </form>
             </div>
@@ -106,35 +104,33 @@
 
                 async function fetchWithAuth(url, method, body) {
                     url = ApiClient.serverAddress() + "/" + url;
-
                     const reqInit = {
                         method: method,
-                        headers: {
-                            'Authorization': `MediaBrowser Token="${ApiClient.accessToken()}"`,
-                        },
+                        headers: { 'Authorization': `MediaBrowser Token="${ApiClient.accessToken()}"` },
                         body: body,
                     };
-
                     if (method === "POST" && body) {
                         reqInit.headers["Content-Type"] = "application/json";
                     }
-
                     return await fetch(url, reqInit);
                 }
 
                 function loadConfiguration() {
                     Dashboard.showLoadingMsg();
                     ApiClient.getPluginConfiguration(pluginId).then(config => {
-                        page.querySelector('#deployPath').value = config.DeployPath || '';
-                        page.querySelector('#symlinkFFmpeg').checked = config.SymlinkFFmpeg;
-                        page.querySelector('#symlinkFFprobe').checked = config.SymlinkFFprobe;
-                        page.querySelector('#symlinkMediaInfo').checked = config.SymlinkMediaInfo;
-                        page.querySelector('#symlinkVaInfo').checked = config.SymlinkVaInfo;
+                        page.querySelector('#createFfmpeg').checked = config.CreateFfmpeg;
+                        page.querySelector('#createFfprobe').checked = config.CreateFfprobe;
+                        page.querySelector('#createMediaInfo').checked = config.CreateMediaInfo;
+                        page.querySelector('#createVaInfo').checked = config.CreateVaInfo;
                         page.querySelector('#useSsl').checked = config.UseSsl;
                         page.querySelector('#grpcHost').value = config.GrpcHost || '';
                         page.querySelector('#grpcPort').value = config.GrpcPort || 0;
                         page.querySelector('#certificatePath').value = config.CertificatePath || '';
                         page.querySelector('#authToken').value = config.AuthToken || '';
+                    });
+                    
+                    fetchWithAuth('GrpcFfmpeg/DeployPath', 'GET').then(response => response.json()).then(data => {
+                        page.querySelector('#deployPathDisplay').textContent = data.Path;
                         Dashboard.hideLoadingMsg();
                     });
                 }
@@ -147,11 +143,10 @@
                     const form = this;
 
                     ApiClient.getPluginConfiguration(pluginId).then(config => {
-                        config.DeployPath = form.querySelector('#deployPath').value;
-                        config.SymlinkFFmpeg = form.querySelector('#symlinkFFmpeg').checked;
-                        config.SymlinkFFprobe = form.querySelector('#symlinkFFprobe').checked;
-                        config.SymlinkMediaInfo = form.querySelector('#symlinkMediaInfo').checked;
-                        config.SymlinkVaInfo = form.querySelector('#symlinkVaInfo').checked;
+                        config.CreateFfmpeg = form.querySelector('#createFfmpeg').checked;
+                        config.CreateFfprobe = form.querySelector('#createFfprobe').checked;
+                        config.CreateMediaInfo = form.querySelector('#createMediaInfo').checked;
+                        config.CreateVaInfo = form.querySelector('#createVaInfo').checked;
                         config.UseSsl = form.querySelector('#useSsl').checked;
                         config.GrpcHost = form.querySelector('#grpcHost').value;
                         config.GrpcPort = parseInt(form.querySelector('#grpcPort').value) || 0;
@@ -175,13 +170,14 @@
                             if (response.ok) {
                                 Dashboard.alert({
                                     title: "Deployment Successful",
-                                    text: "Binaries deployed successfully."
+                                    text: "Binaries and wrappers updated successfully."
                                 });
                             } else {
-                                response.text().then(text => {
+                                response.json().then(error => {
+                                    console.error("Deploy error:", error);
                                     Dashboard.alert({
                                         title: "Deployment Error",
-                                        text: "Error deploying binaries: " + text
+                                        text: `Error deploying binaries: ${error.message}`
                                     });
                                 });
                             }

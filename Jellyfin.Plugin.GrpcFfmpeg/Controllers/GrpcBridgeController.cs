@@ -1,5 +1,6 @@
 using System;
 using Jellyfin.Plugin.GrpcFfmpeg.Managers;
+using MediaBrowser.Common.Configuration;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Jellyfin.Plugin.GrpcFfmpeg.Controllers
@@ -10,9 +11,19 @@ namespace Jellyfin.Plugin.GrpcFfmpeg.Controllers
     {
         private readonly DeploymentManager _deploymentManager;
 
-        public GrpcBridgeController()
+        public GrpcBridgeController(IApplicationPaths appPaths)
         {
-            _deploymentManager = new DeploymentManager();
+            _deploymentManager = new DeploymentManager(appPaths);
+        }
+        
+        [HttpGet("DeployPath")]
+        public ActionResult<object> GetDeployPath()
+        {
+             if (Plugin.Instance == null)
+            {
+                return StatusCode(503, "Plugin not initialized.");
+            }
+            return new { Path = Plugin.Instance.DeployPath };
         }
 
         [HttpPost("Deploy")]
@@ -30,7 +41,7 @@ namespace Jellyfin.Plugin.GrpcFfmpeg.Controllers
             }
             catch (Exception ex)
             {
-                return StatusCode(500, ex.Message);
+                return StatusCode(500, new { message = ex.Message, stackTrace = ex.StackTrace });
             }
         }
     }

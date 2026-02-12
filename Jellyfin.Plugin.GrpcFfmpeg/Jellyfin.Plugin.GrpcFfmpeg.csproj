@@ -10,6 +10,7 @@
     <PackageReference Include="Jellyfin.Model" Version="10.11.6" />
     <PackageReference Include="Jellyfin.Controller" Version="10.11.6" />
     <PackageReference Include="Microsoft.Extensions.Http" Version="6.0.0" />
+    <PackageReference Include="YamlDotNet" Version="16.3.0" />
   </ItemGroup>
 
   <ItemGroup>
@@ -18,5 +19,9 @@
     <EmbeddedResource Include="Assets\grpc-ffmpeg-windows-amd64.exe" />
     <EmbeddedResource Include="Web\config.html" />
   </ItemGroup>
+
+  <Target Name="PostBuild" AfterTargets="PostBuildEvent">
+    <Copy SourceFiles="$(NuGetPackageRoot)yamldotnet\16.3.0\lib\net8.0\YamlDotNet.dll" DestinationFolder="$(TargetDir)" />
+  </Target>
 
 </Project>

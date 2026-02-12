@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Text.Json;
 using Jellyfin.Plugin.GrpcFfmpeg.Configuration;
 using MediaBrowser.Common.Configuration;
@@ -7,42 +8,51 @@ using MediaBrowser.Common.Plugins;
 using MediaBrowser.Model.Plugins;
 using MediaBrowser.Model.Serialization;
 using Microsoft.Extensions.Logging;
+using System.Reflection;
 
 namespace Jellyfin.Plugin.GrpcFfmpeg
 {
     public class Plugin : BasePlugin<PluginConfiguration>, IHasWebPages
     {
         private readonly ILogger<Plugin> _logger;
-        public override Guid Id => Guid.Parse("5FCE29C6-1366-41CD-9B05-6447A531B590");
+        private readonly ConfigGenerator _configGenerator;
+        
+        public string DeployPath { get; private set; }
 
+        public override Guid Id => Guid.Parse("5FCE29C6-1366-41CD-9B05-6447A531B590");
         public override string Name => "gRPC Ffmpeg";
 
         public Plugin(IApplicationPaths applicationPaths, IXmlSerializer xmlSerializer, ILogger<Plugin> logger)
             : base(applicationPaths, xmlSerializer)
         {
             _logger = logger;
-            _logger.LogInformation("gRPC Ffmpeg Plugin: Constructor - Start");
+            _configGenerator = new ConfigGenerator();
+            DeployPath = Path.Combine(applicationPaths.ProgramDataPath, "grpc-ffmpeg");
+            
             Instance = this;
-            _logger.LogInformation("gRPC Ffmpeg Plugin: Configuration Path: {Path}", applicationPaths.PluginConfigurationsPath);
-            _logger.LogInformation("gRPC Ffmpeg Plugin: Constructor - End");
+            
+            Directory.CreateDirectory(DeployPath);
+            
+            _configGenerator.GenerateGrpcConfig(DeployPath, this.Configuration);
+
+            // Log all embedded resources
+            _logger.LogInformation("gRPC Ffmpeg Plugin: Listing embedded resources:");
+            foreach (var resourceName in Assembly.GetExecutingAssembly().GetManifestResourceNames())
+            {
+                _logger.LogInformation("- {ResourceName}", resourceName);
+            }
         }
 
         public static Plugin? Instance { get; private set; }
 
+        public override void UpdateConfiguration(BasePluginConfiguration configuration)
+        {
+            base.UpdateConfiguration(configuration);
+            _configGenerator.GenerateGrpcConfig(DeployPath, (PluginConfiguration)configuration);
+        }
+
         public IEnumerable<PluginPageInfo> GetPages()
         {
-            _logger.LogInformation("gRPC Ffmpeg Plugin: GetPages called.");
-            
-            try
-            {
-                var jsonConfig = JsonSerializer.Serialize(this.Configuration);
-                _logger.LogInformation("gRPC Ffmpeg Plugin: Current configuration state: {Config}", jsonConfig);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "gRPC Ffmpeg Plugin: Failed to serialize configuration for logging.");
-            }
-
             return new[]
             {
                 new PluginPageInfo
