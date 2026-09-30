@@ -90,7 +90,29 @@ The build downloads the grpc-ffmpeg client binaries of the release set in
 
 The output is `Jellyfin.Plugin.GrpcFfmpeg/bin/Release/net9.0/Jellyfin.Plugin.GrpcFfmpeg.dll`.
 
+## Plugin repository
+
+`manifest.json` on `main` is the plugin repository file for Jellyfin:
+
+```
+https://raw.githubusercontent.com/CrystalNET-org/Jellyfin.Plugin.GrpcFfmpeg/main/manifest.json
+```
+
+Each release adds itself to it, with the commit titles since the previous release as its
+changelog. Jellyfin then offers the update in the plugin catalog.
+
 ## Releasing
 
 Push a tag such as `0.2.0`. CI builds the plugin as version `0.2.0.0`, publishes
 `gRPC-ffmpeg_0.2.0.0.zip` as a GitHub release, and adds it to `manifest.json` on `main`.
+
+Dependency updates are released automatically:
+
+1. Renovate opens PRs for new grpc-ffmpeg releases (one hour after release, once the client
+   binaries are published) and for Jellyfin package patch updates.
+2. The build pipeline builds the plugin for the PR, and Renovate merges it once it passes.
+3. On `main`, `.woodpecker/auto_release.yaml` pushes the next patch tag (e.g. `0.2.1`) if the
+   embedded grpc-ffmpeg release or the Jellyfin packages differ from the latest release
+   (`scripts/next-release-tag.sh`).
+
+Renovate runs through `.woodpecker/renovate.yaml`; it needs a cron job in Woodpecker.

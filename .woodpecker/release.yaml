@@ -41,10 +41,17 @@ steps:
       - apt-get update && apt-get install -y --no-install-recommends git ca-certificates
       - VERSION=$(sed -n 1p artifacts/release-info)
       - TIMESTAMP=$(sed -n 2p artifacts/release-info)
+      # Changelog for the plugin catalog: commit titles since the previous release
+      - git fetch --tags --force --unshallow origin || git fetch --tags --force origin
+      - PREVIOUS=$(git describe --tags --abbrev=0 "$${CI_COMMIT_TAG}^" 2>/dev/null || true)
+      - >-
+        if [ -n "$PREVIOUS" ]; then
+        CHANGELOG=$(git log --no-merges --pretty='- %s' "$PREVIOUS..$${CI_COMMIT_TAG}" | grep -v '^- manifest: ' || true);
+        else CHANGELOG="Initial release"; fi
       - git fetch origin main && git checkout -B main origin/main
       - >-
         python3 scripts/update_manifest.py --version "$VERSION" --target-abi "$TARGET_ABI"
         --url "https://github.com/$${CI_REPO}/releases/download/$${CI_COMMIT_TAG}/gRPC-ffmpeg_$VERSION.zip"
-        --checksum "$(cat artifacts/checksum)" --timestamp "$TIMESTAMP"
-      - git -c user.name="Woodpecker CI" -c user.email="woodpecker-bot@crystalnet.org" commit -am "manifest: add $VERSION"
+        --checksum "$(cat artifacts/checksum)" --timestamp "$TIMESTAMP" --changelog "$CHANGELOG"
+      - 'git -c user.name="Woodpecker CI" -c user.email="woodpecker-bot@crystalnet.org" commit -am "manifest: add $VERSION"'
       - git push "https://x-access-token:$${GITHUB_TOKEN}@github.com/$${CI_REPO}.git" main

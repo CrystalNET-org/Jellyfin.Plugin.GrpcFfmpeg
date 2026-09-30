@@ -1,6 +1,7 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": ["config:recommended"],
+  "dependencyDashboard": true,
   "customManagers": [
     {
       "customType": "regex",
@@ -13,8 +14,25 @@
   ],
   "packageRules": [
     {
-      "description": "Plugin ABI: keep Jellyfin packages on the targeted minor version",
+      "description": "New grpc-ffmpeg clients: automerge once the release's binaries are published; the merge is released automatically (.woodpecker/auto_release.yaml)",
+      "matchPackageNames": ["CrystalNET-org/grpc-ffmpeg"],
+      "minimumReleaseAge": "1 hour",
+      "automerge": true,
+      "automergeType": "pr"
+    },
+    {
+      "description": "Jellyfin packages: stay on the targeted ABI (10.11) and automerge patch updates together",
       "matchPackageNames": ["Jellyfin.Controller", "Jellyfin.Model"],
+      "allowedVersions": "<10.12",
+      "groupName": "Jellyfin packages",
+      "matchUpdateTypes": ["patch"],
+      "automerge": true,
+      "automergeType": "pr"
+    },
+    {
+      "description": "Jellyfin packages: keep minor/major updates within the targeted ABI",
+      "matchPackageNames": ["Jellyfin.Controller", "Jellyfin.Model"],
+      "matchUpdateTypes": ["minor", "major"],
       "allowedVersions": "<10.12"
     }
   ]

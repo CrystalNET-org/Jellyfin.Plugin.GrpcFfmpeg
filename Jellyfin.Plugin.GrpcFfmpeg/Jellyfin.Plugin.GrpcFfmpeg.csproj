@@ -8,7 +8,7 @@
     <AssemblyVersion>$(Version)</AssemblyVersion>
     <FileVersion>$(Version)</FileVersion>
     <!-- grpc-ffmpeg release whose client binaries are embedded in the plugin (needs grpc-ffmpeg.conf and FALLBACK_DIR support) -->
-    <!-- renovate: datasource=github-tags depName=CrystalNET-org/grpc-ffmpeg versioning=loose -->
+    <!-- renovate: datasource=github-releases depName=CrystalNET-org/grpc-ffmpeg versioning=loose -->
     <GrpcFfmpegVersion>7.1.4-7.6</GrpcFfmpegVersion>
     <!-- Where the client binaries are downloaded to; pass -p:GrpcFfmpegAssetsDir=... to use local builds -->
     <GrpcFfmpegAssetsDir Condition="'$(GrpcFfmpegAssetsDir)' == ''">$(BaseIntermediateOutputPath)grpc-ffmpeg\$(GrpcFfmpegVersion)\</GrpcFfmpegAssetsDir>
