@@ -52,6 +52,16 @@ The status on the settings page shows which ffmpeg Jellyfin uses.
   keeps working (and starting) while the workers are down. Lower **Attempts before giving up**
   to make the fallback kick in faster.
 
+## Console
+
+The settings page has a live console with every command run through the client: its exit
+code, duration, the client's own messages (retries, authentication errors, fallback) and
+the last lines of ffmpeg's error output for failed commands. Jellyfin discards that output
+for many calls, e.g. its startup checks. On Linux the clients write to a named pipe
+(`console.fifo` in the client directory) that the plugin reads into memory, so nothing is
+written to disk. While Jellyfin is not reading it, the clients drop their lines without
+waiting. On Windows a log file (`grpc-ffmpeg.log`, rotated at 1 MB) is used instead.
+
 ## Troubleshooting
 
 - **Test fails with `Unauthenticated: Invalid token`:** the token does not match the worker's
@@ -61,8 +71,9 @@ The status on the settings page shows which ffmpeg Jellyfin uses.
 - **Status says a restart is required:** the activation setting changed since Jellyfin started.
 - **Commands fail on the worker with "No such file or directory":** the paths are not shared,
   see Requirements.
-- Jellyfin logs the plugin's decisions at startup (search the log for `gRPC-ffmpeg`), and the
-  worker logs every command and rejected call.
+- Check the console on the settings page first. Jellyfin also logs the plugin's decisions at
+  startup (search the log for `gRPC-ffmpeg`), and the worker logs every command and rejected
+  call.
 
 ## Building
 

@@ -53,6 +53,29 @@ namespace Jellyfin.Plugin.GrpcFfmpeg.Controllers
         }
 
         /// <summary>
+        /// Gets the clients' activity log lines after the given id.
+        /// </summary>
+        /// <param name="after">Id of the last line the caller already has.</param>
+        [HttpGet("Console")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        public ActionResult<object> GetConsole([FromQuery] long after = 0)
+        {
+            var (lastId, lines) = ActivityConsole.Read(after);
+            return new { LastId = lastId, Lines = lines.Select(line => new { line.Id, line.Text }) };
+        }
+
+        /// <summary>
+        /// Clears the activity log shown in the console.
+        /// </summary>
+        [HttpPost("Console/Clear")]
+        [ProducesResponseType(StatusCodes.Status204NoContent)]
+        public ActionResult ClearConsole()
+        {
+            ActivityConsole.Clear();
+            return NoContent();
+        }
+
+        /// <summary>
         /// Redeploys the client and its config file.
         /// </summary>
         [HttpPost("Deploy")]

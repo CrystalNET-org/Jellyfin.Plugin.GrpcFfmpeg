@@ -75,6 +75,7 @@ namespace Jellyfin.Plugin.GrpcFfmpeg
                     return null;
                 }
 
+                ActivityConsole.Start(directory, logger);
                 WriteClientConfig(directory, config, FallbackDirectory(config, startupConfig, configurationManager, directory), logger);
             }
 
@@ -228,6 +229,7 @@ namespace Jellyfin.Plugin.GrpcFfmpeg
                 ("RETRIES", Math.Max(1, config.Retries).ToString(System.Globalization.CultureInfo.InvariantCulture)),
                 ("CONNECT_TIMEOUT", Math.Max(1, config.ConnectTimeout).ToString(System.Globalization.CultureInfo.InvariantCulture)),
                 ("FALLBACK_DIR", fallbackDirectory),
+                ("LOG_FILE", ActivityConsole.LogTarget(directory)),
             };
 
             var text = new StringBuilder("# Written by the Jellyfin gRPC-ffmpeg plugin; changes here are overwritten.\n");

@@ -75,6 +75,19 @@
                     </div>
 
                     <div class="verticalSection">
+                        <h3 class="sectionTitle">Console</h3>
+                        <div class="fieldDescription">Commands run through the client with their exit codes, the client's messages (retries, authentication errors, fallback) and the end of ffmpeg's error output for failed commands. Kept in memory only (last 1000 lines).</div>
+                        <pre id="grpcFfmpegConsole" style="background: #111; color: #ddd; font-family: monospace; font-size: 12px; line-height: 1.4; height: 24em; overflow: auto; padding: 0.5em; margin: 0.5em 0; white-space: pre-wrap; word-break: break-all; border-radius: 4px;"></pre>
+                        <div class="flex align-items-center">
+                            <label class="checkboxContainer" style="margin: 0 1em 0 0;">
+                                <input is="emby-checkbox" type="checkbox" id="consoleFollow" checked />
+                                <span>Live</span>
+                            </label>
+                            <button is="emby-button" type="button" id="consoleClear" class="raised"><span>Clear</span></button>
+                        </div>
+                    </div>
+
+                    <div class="verticalSection">
                         <h3 class="sectionTitle">Activation</h3>
                         <div class="checkboxContainer checkboxContainer-withDescription">
                             <label>
@@ -167,7 +180,81 @@
                     });
                 }
 
+                // Console: fetch new lines every 2 seconds while the page is shown
+                const consoleBox = $('#grpcFfmpegConsole');
+                let consoleLastId = 0;
+                let consoleTimer = null;
+                const consoleColors = [
+                    [/exit 0 after/, '#8c8'],
+                    [/(exit -?[1-9]|error|failed|Invalid token|not set|No worker|no local fallback)/i, '#f77'],
+                    [/(retrying|running .* locally)/i, '#fc6'],
+                    [/  stderr: /, '#aaa'],
+                ];
+
+                function appendConsoleLines(lines) {
+                    const atBottom = consoleBox.scrollHeight - consoleBox.scrollTop - consoleBox.clientHeight < 40;
+                    for (const line of lines) {
+                        const text = get(line, 'Text');
+                        const span = document.createElement('span');
+                        span.textContent = text + '\n';
+                        // Color by the message only: "run:" lines show the command, which
+                        // may contain words like "error" (e.g. "-v error")
+                        const message = text.replace(/^\S+ \S+ \[\d+\] \S+ /, '');
+                        const match = message.startsWith('run:') ? null : consoleColors.find(([pattern]) => pattern.test(message));
+                        if (match) {
+                            span.style.color = match[1];
+                        }
+                        consoleBox.appendChild(span);
+                    }
+                    while (consoleBox.childNodes.length > 1000) {
+                        consoleBox.removeChild(consoleBox.firstChild);
+                    }
+                    if (atBottom) {
+                        consoleBox.scrollTop = consoleBox.scrollHeight;
+                    }
+                }
+
+                function pollConsole() {
+                    if (!document.body.contains(page)) {
+                        stopConsole();
+                        return;
+                    }
+                    if (!$('#consoleFollow').checked) {
+                        return;
+                    }
+                    api('GET', 'GrpcFfmpeg/Console?after=' + consoleLastId, true).then(result => {
+                        const lastId = get(result, 'LastId');
+                        if (lastId < consoleLastId) {
+                            // Jellyfin restarted
+                            consoleBox.textContent = '';
+                        }
+                        appendConsoleLines(get(result, 'Lines') || []);
+                        consoleLastId = lastId;
+                    }).catch(() => { /* try again on the next tick */ });
+                }
+
+                function startConsole() {
+                    stopConsole();
+                    consoleBox.textContent = '';
+                    consoleLastId = 0;
+                    pollConsole();
+                    consoleTimer = setInterval(pollConsole, 2000);
+                }
+
+                function stopConsole() {
+                    if (consoleTimer) {
+                        clearInterval(consoleTimer);
+                        consoleTimer = null;
+                    }
+                }
+
+                $('#consoleClear').addEventListener('click', function () {
+                    api('POST', 'GrpcFfmpeg/Console/Clear', false).then(() => { consoleBox.textContent = ''; });
+                });
+
                 page.addEventListener('pageshow', loadConfiguration);
+                page.addEventListener('pageshow', startConsole);
+                page.addEventListener('pagehide', stopConsole);
 
                 $('.grpcFfmpegConfigurationForm').addEventListener('submit', function (e) {
                     e.preventDefault();
