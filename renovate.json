@@ -1,0 +1,21 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:recommended"],
+  "customManagers": [
+    {
+      "customType": "regex",
+      "description": "grpc-ffmpeg release whose client binaries are embedded",
+      "managerFilePatterns": ["/\\.csproj$/"],
+      "matchStrings": [
+        "<!-- renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+) versioning=(?<versioning>\\S+) -->\\s*<GrpcFfmpegVersion>(?<currentValue>[^<]+)</GrpcFfmpegVersion>"
+      ]
+    }
+  ],
+  "packageRules": [
+    {
+      "description": "Plugin ABI: keep Jellyfin packages on the targeted minor version",
+      "matchPackageNames": ["Jellyfin.Controller", "Jellyfin.Model"],
+      "allowedVersions": "<10.12"
+    }
+  ]
+}

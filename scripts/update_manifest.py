@@ -1,23 +1,38 @@
 #!/usr/bin/env python3
-import json
+"""Add a release to manifest.json (the Jellyfin plugin repository file)."""
 import argparse
+import json
 
-def update_manifest(version, url, checksum):
-    with open('manifest.json', 'r') as f:
-        manifest = json.load(f)
 
-    manifest[0]['version'] = version
-    manifest[0]['url'] = url
-    manifest[0]['checksum'] = checksum
-
-    with open('manifest.json', 'w') as f:
-        json.dump(manifest, f, indent=2)
-
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description='Update manifest.json')
-    parser.add_argument('--version', required=True)
-    parser.add_argument('--url', required=True)
-    parser.add_argument('--checksum', required=True)
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--version", required=True, help="four-part version, e.g. 0.2.0.0")
+    parser.add_argument("--target-abi", required=True, help="minimum Jellyfin version, e.g. 10.11.0.0")
+    parser.add_argument("--url", required=True, help="download URL of the release zip")
+    parser.add_argument("--checksum", required=True, help="MD5 of the release zip")
+    parser.add_argument("--timestamp", required=True, help="release time, ISO 8601")
+    parser.add_argument("--changelog", default="")
+    parser.add_argument("--manifest", default="manifest.json")
     args = parser.parse_args()
 
-    update_manifest(args.version, args.url, args.checksum)
+    with open(args.manifest, encoding="utf-8") as f:
+        manifest = json.load(f)
+
+    versions = [v for v in manifest[0]["versions"] if v["version"] != args.version]
+    versions.insert(0, {
+        "version": args.version,
+        "changelog": args.changelog,
+        "targetAbi": args.target_abi,
+        "sourceUrl": args.url,
+        "checksum": args.checksum,
+        "timestamp": args.timestamp,
+    })
+    manifest[0]["versions"] = versions
+
+    with open(args.manifest, "w", encoding="utf-8") as f:
+        json.dump(manifest, f, indent=2)
+        f.write("\n")
+
+
+if __name__ == "__main__":
+    main()

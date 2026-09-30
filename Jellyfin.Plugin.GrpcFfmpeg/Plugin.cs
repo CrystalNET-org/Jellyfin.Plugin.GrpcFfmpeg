@@ -1,102 +1,77 @@
-using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Text.Json;
 using Jellyfin.Plugin.GrpcFfmpeg.Configuration;
-using Jellyfin.Plugin.GrpcFfmpeg.Managers;
 using MediaBrowser.Common.Configuration;
 using MediaBrowser.Common.Plugins;
+using MediaBrowser.Controller.Configuration;
 using MediaBrowser.Model.Plugins;
 using MediaBrowser.Model.Serialization;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
-using System.Reflection;
-using MediaBrowser.Controller.Configuration; 
-using MediaBrowser.Model.Configuration; 
-using MediaBrowser.Controller.MediaEncoding; 
-using System.Runtime.InteropServices; 
 
 namespace Jellyfin.Plugin.GrpcFfmpeg
 {
+    /// <summary>
+    /// Runs Jellyfin's ffmpeg commands on remote grpc-ffmpeg workers.
+    /// </summary>
     public class Plugin : BasePlugin<PluginConfiguration>, IHasWebPages
     {
+        private readonly IApplicationPaths _applicationPaths;
+        private readonly IConfiguration _startupConfig;
+        private readonly IServerConfigurationManager _configurationManager;
         private readonly ILogger<Plugin> _logger;
-        private readonly ConfigGenerator _configGenerator;
-        internal readonly DeploymentManager DeploymentManager; 
-        private readonly IServerConfigurationManager _serverConfigurationManager; 
-        internal readonly IMediaEncoder MediaEncoder; 
-        
-        public string DeployPath { get; private set; }
 
-        public override Guid Id => Guid.Parse("5FCE29C6-1366-41CD-9B05-6447A531B590");
-        public override string Name => "gRPC-ffmpeg";
-
-        public Plugin(IApplicationPaths applicationPaths, 
-                      IXmlSerializer xmlSerializer, 
-                      ILogger<Plugin> logger, 
-                      ILoggerFactory loggerFactory,
-                      IServerConfigurationManager serverConfigurationManager,
-                      IMediaEncoder mediaEncoder)
+        public Plugin(
+            IApplicationPaths applicationPaths,
+            IXmlSerializer xmlSerializer,
+            IConfiguration startupConfig,
+            IServerConfigurationManager configurationManager,
+            ILogger<Plugin> logger)
             : base(applicationPaths, xmlSerializer)
         {
+            _applicationPaths = applicationPaths;
+            _startupConfig = startupConfig;
+            _configurationManager = configurationManager;
             _logger = logger;
-            _configGenerator = new ConfigGenerator();
-            DeploymentManager = new DeploymentManager(applicationPaths, loggerFactory.CreateLogger<DeploymentManager>()); 
-            _serverConfigurationManager = serverConfigurationManager; 
-            MediaEncoder = mediaEncoder; 
-            
-            DeployPath = Path.Combine(applicationPaths.ProgramDataPath, "grpc-ffmpeg");
-            
             Instance = this;
-            
-            Directory.CreateDirectory(DeployPath);
-            
-            _configGenerator.GenerateGrpcConfig(DeployPath, this.Configuration);
 
-            _logger.LogInformation("gRPC Ffmpeg Plugin: Listing embedded resources:");
-            foreach (var resourceName in Assembly.GetExecutingAssembly().GetManifestResourceNames())
-            {
-                _logger.LogInformation("- {ResourceName}", resourceName);
-            }
+            // Keep the deployed client in sync with this plugin version
+            Prepare();
         }
 
         public static Plugin? Instance { get; private set; }
 
-        public override void UpdateConfiguration(BasePluginConfiguration configuration)
+        public override Guid Id => Guid.Parse("5FCE29C6-1366-41CD-9B05-6447A531B590");
+
+        public override string Name => "gRPC-ffmpeg";
+
+        public override string Description => "Runs Jellyfin's ffmpeg commands on remote grpc-ffmpeg workers.";
+
+        public string DeployDirectory => Relay.DeployDirectory(_applicationPaths);
+
+        public string? FallbackDirectory => Relay.FallbackDirectory(Configuration, _startupConfig, _configurationManager, DeployDirectory);
+
+        /// <summary>
+        /// Deploys the client and writes its config file. Never throws, as this runs
+        /// during server startup.
+        /// </summary>
+        /// <returns>The path to use as ffmpeg, or null on failure.</returns>
+        public string? Prepare()
         {
-            base.UpdateConfiguration(configuration);
-            var pluginConfig = (PluginConfiguration)configuration;
-
-            _configGenerator.GenerateGrpcConfig(DeployPath, pluginConfig);
-
-            if (pluginConfig.AutoSetFfmpegPath)
+            try
             {
-                SetJellyfinFfmpegPath(DeployPath);
+                return Relay.Prepare(_applicationPaths, Configuration, _startupConfig, _configurationManager, _logger);
             }
-            else
+            catch (Exception ex)
             {
-                _logger.LogInformation("Auto-setting FFmpeg path is disabled. Manual configuration required if this path was previously set by the plugin.");
+                _logger.LogError(ex, "gRPC-ffmpeg: failed to deploy the client to {Directory}", DeployDirectory);
+                return null;
             }
         }
 
-        private void SetJellyfinFfmpegPath(string newFfmpegFolderPath) 
+        public override void UpdateConfiguration(BasePluginConfiguration configuration)
         {
-            var encodingConfig = _serverConfigurationManager.GetConfiguration<EncodingOptions>("encoding");
-
-            // Simply set to "ffmpeg" and let the OS handle .exe resolution
-            string ffmpegExecutableName = "ffmpeg"; 
-            string newFfmpegPath = Path.Combine(newFfmpegFolderPath, ffmpegExecutableName);
-
-            if (encodingConfig.EncoderAppPath != newFfmpegPath)
-            {
-                _logger.LogInformation($"gRPC Ffmpeg Plugin: Overwriting FFmpeg path from '{encodingConfig.EncoderAppPath}' to '{newFfmpegPath}'");
-                encodingConfig.EncoderAppPath = newFfmpegPath;
-                _serverConfigurationManager.SaveConfiguration("encoding", encodingConfig);
-                _logger.LogInformation("gRPC Ffmpeg Plugin: FFmpeg path updated in Jellyfin server configuration.");
-            }
-            else
-            {
-                _logger.LogInformation("gRPC Ffmpeg Plugin: FFmpeg path already set to '{NewFfmpegPath}'. No update needed.", newFfmpegPath);
-            }
+            base.UpdateConfiguration(configuration);
+            // Worker settings apply to the next command right away; Enabled needs a restart
+            Prepare();
         }
 
         public IEnumerable<PluginPageInfo> GetPages()
@@ -107,8 +82,7 @@ namespace Jellyfin.Plugin.GrpcFfmpeg
                 {
                     Name = "gRPC-ffmpeg",
                     EmbeddedResourcePath = GetType().Namespace + ".Web.config.html",
-                    EnableInMainMenu = true
-                }
+                },
             };
         }
     }
