@@ -5,77 +5,98 @@
 </head>
 <body>
     <div id="grpcFfmpegConfigPage" data-role="page" class="page type-interior pluginConfigurationPage"
-         data-require="emby-input,emby-button,emby-checkbox,emby-select">
+         data-require="emby-input,emby-button,emby-checkbox">
         <div data-role="content">
             <div class="content-primary">
                 <form class="grpcFfmpegConfigurationForm">
                     <div class="sectionTitleContainer flex align-items-center">
                         <h2 class="sectionTitle">gRPC-ffmpeg</h2>
                     </div>
+                    <p>Runs Jellyfin's ffmpeg and ffprobe commands on remote
+                        <a is="emby-linkbutton" class="button-link" href="https://github.com/CrystalNET-org/grpc-ffmpeg" target="_blank">grpc-ffmpeg</a>
+                        workers. Media, transcode and cache directories must be available at the same paths on Jellyfin and on the workers.</p>
 
                     <div class="verticalSection">
-                        <div class="sectionTitleContainer flex align-items-center">
-                            <h2 class="sectionTitle">Deployment</h2>
-                        </div>
-                        <div class="inputContainer">
-                            <label class="inputLabel" for="deployPathDisplay">Plugin Deploy Path</label>
-                            <div class="input" id="deployPathDisplay" readonly></div>
-                            <div class="fieldDescription">
-                                This is the managed path where the binaries will be deployed.
-                            </div>
-                        </div>
-
-                        <div class="inputContainer">
-                            <label class="inputLabel" for="jellyfinFfmpegPathDisplay">Jellyfin FFmpeg Path</label>
-                            <div class="input" id="jellyfinFfmpegPathDisplay" readonly></div>
-                            <div class="fieldDescription">
-                                This is the FFmpeg path currently configured in Jellyfin's Encoding settings.
-                            </div>
-                        </div>
-
-                        <div class="checkboxContainer checkboxContainer-withDescription">
-                            <label>
-                                <input is="emby-checkbox" type="checkbox" id="autoSetFfmpegPath" />
-                                <span>Automatically set Jellyfin's FFmpeg path</span>
-                            </label>
-                             <div class="fieldDescription checkboxFieldDescription">
-                                If checked, this plugin will automatically configure Jellyfin's FFmpeg path to point to its deployment directory on save.
-                            </div>
-                        </div>
-                        <br/>
-                        <div class="fieldDescription" style="color: orange; margin-bottom: 1em;">
-                            <strong>Note: Make sure to Deploy first before enabling the ffmpeg path change.</strong>
-                        </div>
-                        <div>
-                            <button is="emby-button" type="button" id="deployButton" class="raised button-accent block"><span>Deploy/Update Binaries & Wrappers</span></button>
-                        </div>
+                        <h3 class="sectionTitle">Status</h3>
+                        <div id="grpcFfmpegStatus" class="fieldDescription">Loading…</div>
                     </div>
 
                     <div class="verticalSection">
-                        <div class="sectionTitleContainer flex align-items-center">
-                            <h2 class="sectionTitle">gRPC Worker Configuration (config.yml)</h2>
+                        <h3 class="sectionTitle">Worker</h3>
+                        <div class="inputContainer">
+                            <input type="text" id="grpcHost" is="emby-input" label="Host" required />
+                            <div class="fieldDescription">Host name or IP address of the worker, service or load balancer.</div>
+                        </div>
+                        <div class="inputContainer">
+                            <input type="number" id="grpcPort" is="emby-input" label="Port" min="1" max="65535" required />
+                        </div>
+                        <div class="inputContainer">
+                            <input type="password" id="authToken" is="emby-input" label="Authentication token" autocomplete="new-password" />
+                            <div class="fieldDescription">Must match the worker's VALID_TOKEN.</div>
                         </div>
                         <div class="checkboxContainer checkboxContainer-withDescription">
                             <label>
                                 <input is="emby-checkbox" type="checkbox" id="useSsl" />
-                                <span>Use SSL</span>
+                                <span>Use TLS</span>
                             </label>
                         </div>
                         <div class="inputContainer">
-                            <label class="inputLabel inputLabelUnfocused" for="grpcHost">gRPC Host</label>
-                            <input type="text" id="grpcHost" is="emby-input" />
+                            <input type="text" id="certificatePath" is="emby-input" label="CA certificate path" />
+                            <div class="fieldDescription">Certificate used to verify the worker when TLS is enabled.</div>
                         </div>
-                         <div class="inputContainer">
-                            <label class="inputLabel inputLabelUnfocused" for="grpcPort">gRPC Port</label>
-                            <input type="number" id="grpcPort" is="emby-input" />
+                        <div>
+                            <button is="emby-button" type="button" id="testButton" class="raised block"><span>Save and test connection</span></button>
+                        </div>
+                        <div id="testResult" class="fieldDescription" style="white-space: pre-wrap;"></div>
+                    </div>
+
+                    <div class="verticalSection">
+                        <h3 class="sectionTitle">Fallback</h3>
+                        <div class="checkboxContainer checkboxContainer-withDescription">
+                            <label>
+                                <input is="emby-checkbox" type="checkbox" id="enableFallback" />
+                                <span>Run commands locally when no worker is reachable</span>
+                            </label>
+                            <div class="fieldDescription checkboxFieldDescription">
+                                Recommended: Jellyfin does not start if its ffmpeg check fails, e.g. while all workers are down.
+                            </div>
                         </div>
                         <div class="inputContainer">
-                            <label class="inputLabel inputLabelUnfocused" for="certificatePath">Certificate Path</label>
-                            <input type="text" id="certificatePath" is="emby-input" />
+                            <input type="text" id="fallbackDirectory" is="emby-input" label="Local ffmpeg directory" />
+                            <div class="fieldDescription">Leave empty to use the ffmpeg Jellyfin would use without this plugin (<span id="detectedFallback">not found</span>).</div>
                         </div>
                         <div class="inputContainer">
-                            <label class="inputLabel inputLabelUnfocused" for="authToken">Authentication Token</label>
-                            <input type="password" id="authToken" is="emby-input" />
+                            <input type="number" id="retries" is="emby-input" label="Attempts before giving up" min="1" max="10" />
+                            <div class="fieldDescription">Attempts while no worker is reachable or all are busy, with increasing delays (1s, 2s, 4s, …).</div>
+                        </div>
+                        <div class="inputContainer">
+                            <input type="number" id="connectTimeout" is="emby-input" label="Connection timeout (seconds)" min="1" max="60" />
+                        </div>
+                    </div>
+
+                    <div class="verticalSection">
+                        <h3 class="sectionTitle">Console</h3>
+                        <div class="fieldDescription">Commands run through the client with their exit codes, the client's messages (retries, authentication errors, fallback) and the end of ffmpeg's error output for failed commands. Kept in memory only (last 1000 lines).</div>
+                        <pre id="grpcFfmpegConsole" style="background: #111; color: #ddd; font-family: monospace; font-size: 12px; line-height: 1.4; height: 24em; overflow: auto; padding: 0.5em; margin: 0.5em 0; white-space: pre-wrap; word-break: break-all; border-radius: 4px;"></pre>
+                        <div class="flex align-items-center">
+                            <label class="checkboxContainer" style="margin: 0 1em 0 0;">
+                                <input is="emby-checkbox" type="checkbox" id="consoleFollow" checked />
+                                <span>Live</span>
+                            </label>
+                            <button is="emby-button" type="button" id="consoleClear" class="raised"><span>Clear</span></button>
+                        </div>
+                    </div>
+
+                    <div class="verticalSection">
+                        <h3 class="sectionTitle">Activation</h3>
+                        <div class="checkboxContainer checkboxContainer-withDescription">
+                            <label>
+                                <input is="emby-checkbox" type="checkbox" id="enabled" />
+                                <span>Use gRPC workers for ffmpeg</span>
+                            </label>
+                            <div class="fieldDescription checkboxFieldDescription">
+                                Takes effect after restarting Jellyfin. Test the connection first.
+                            </div>
                         </div>
                     </div>
 
@@ -89,121 +110,179 @@
             (function () {
                 'use strict';
 
-                const pluginId = "5FCE29C6-1366-41CD-9B05-6447A531B590";
+                const pluginId = '5FCE29C6-1366-41CD-9B05-6447A531B590';
                 const page = document.querySelector('#grpcFfmpegConfigPage');
+                const $ = (selector) => page.querySelector(selector);
+                // Accept both PascalCase and camelCase JSON
+                const get = (obj, name) => obj[name] !== undefined ? obj[name] : obj[name.charAt(0).toLowerCase() + name.slice(1)];
 
-                async function fetchWithAuth(url, method, body) {
-                    url = ApiClient.serverAddress() + "/" + url;
-                    const reqInit = {
-                        method: method,
-                        headers: { 'Authorization': `MediaBrowser Token="${ApiClient.accessToken()}"` },
-                        body: body,
-                    };
-                    if (method === "POST" && body) {
-                        reqInit.headers["Content-Type"] = "application/json";
-                    }
-                    return await fetch(url, reqInit);
+                function escapeHtml(text) {
+                    const div = document.createElement('div');
+                    div.textContent = text == null ? '' : String(text);
+                    return div.innerHTML;
+                }
+
+                function api(method, path, json) {
+                    return ApiClient.ajax({ type: method, url: ApiClient.getUrl(path), dataType: json ? 'json' : undefined });
+                }
+
+                function loadStatus() {
+                    return api('GET', 'GrpcFfmpeg/Status', true).then(status => {
+                        let text;
+                        if (!get(status, 'PlatformSupported')) {
+                            text = 'No grpc-ffmpeg client is available for this platform.';
+                        } else if (get(status, 'Active')) {
+                            text = 'Active: Jellyfin runs ffmpeg through ' + escapeHtml(get(status, 'ActiveFfmpegPath')) + '.';
+                        } else {
+                            text = 'Inactive: Jellyfin uses ' + escapeHtml(get(status, 'ActiveFfmpegPath') || 'no ffmpeg') + '.';
+                        }
+                        if (get(status, 'RestartRequired')) {
+                            text += ' <strong>Restart Jellyfin to apply the activation setting.</strong>';
+                        }
+                        text += '<br/>Client directory: ' + escapeHtml(get(status, 'DeployDirectory'));
+                        $('#grpcFfmpegStatus').innerHTML = text;
+                        $('#detectedFallback').textContent = get(status, 'FallbackDirectory') || 'not found';
+                    }).catch(() => {
+                        $('#grpcFfmpegStatus').textContent = 'Could not load the status.';
+                    });
                 }
 
                 function loadConfiguration() {
                     Dashboard.showLoadingMsg();
                     ApiClient.getPluginConfiguration(pluginId).then(config => {
-                        // All wrapper creation checkboxes are now internal to the plugin and hardcoded to true
-                        // page.querySelector('#createFfmpeg').checked = config.CreateFfmpeg;
-                        // page.querySelector('#createFfprobe').checked = config.CreateFfprobe;
-                        // page.querySelector('#createMediaInfo').checked = config.CreateMediaInfo;
-                        // page.querySelector('#createVaInfo').checked = config.CreateVaInfo;
-                        
-                        page.querySelector('#autoSetFfmpegPath').checked = config.AutoSetFfmpegPath; 
-                        page.querySelector('#useSsl').checked = config.UseSsl;
-                        page.querySelector('#grpcHost').value = config.GrpcHost || '';
-                        page.querySelector('#grpcPort').value = config.GrpcPort || 0;
-                        page.querySelector('#certificatePath').value = config.CertificatePath || '';
-                        page.querySelector('#authToken').value = config.AuthToken || '';
-                    });
-                    
-                    fetchWithAuth('GrpcFfmpeg/DeployPath', 'GET').then(response => response.json()).then(data => {
-                        page.querySelector('#deployPathDisplay').textContent = data.Path;
-                    });
+                        $('#enabled').checked = config.Enabled;
+                        $('#grpcHost').value = config.GrpcHost || '';
+                        $('#grpcPort').value = config.GrpcPort || 50051;
+                        $('#authToken').value = config.AuthToken || '';
+                        $('#useSsl').checked = config.UseSsl;
+                        $('#certificatePath').value = config.CertificatePath || '';
+                        $('#enableFallback').checked = config.EnableFallback;
+                        $('#fallbackDirectory').value = config.FallbackDirectory || '';
+                        $('#retries').value = config.Retries || 2;
+                        $('#connectTimeout').value = config.ConnectTimeout || 5;
+                        return loadStatus();
+                    }).finally(() => Dashboard.hideLoadingMsg());
+                }
 
-                    fetchWithAuth('GrpcFfmpeg/JellyfinFfmpegPath', 'GET').then(response => response.json()).then(data => {
-                        page.querySelector('#jellyfinFfmpegPathDisplay').textContent = data.Path || 'Not Set';
-                        Dashboard.hideLoadingMsg();
+                function saveConfiguration() {
+                    return ApiClient.getPluginConfiguration(pluginId).then(config => {
+                        config.Enabled = $('#enabled').checked;
+                        config.GrpcHost = $('#grpcHost').value.trim();
+                        config.GrpcPort = parseInt($('#grpcPort').value, 10) || 50051;
+                        config.AuthToken = $('#authToken').value;
+                        config.UseSsl = $('#useSsl').checked;
+                        config.CertificatePath = $('#certificatePath').value.trim();
+                        config.EnableFallback = $('#enableFallback').checked;
+                        config.FallbackDirectory = $('#fallbackDirectory').value.trim();
+                        config.Retries = parseInt($('#retries').value, 10) || 2;
+                        config.ConnectTimeout = parseInt($('#connectTimeout').value, 10) || 5;
+                        return ApiClient.updatePluginConfiguration(pluginId, config);
                     });
                 }
 
-                page.addEventListener('pageshow', loadConfiguration);
+                // Console: fetch new lines every 2 seconds while the page is shown
+                const consoleBox = $('#grpcFfmpegConsole');
+                let consoleLastId = 0;
+                let consoleTimer = null;
+                const consoleColors = [
+                    [/exit 0 after/, '#8c8'],
+                    [/(exit -?[1-9]|error|failed|Invalid token|not set|No worker|no local fallback)/i, '#f77'],
+                    [/(retrying|running .* locally)/i, '#fc6'],
+                    [/  stderr: /, '#aaa'],
+                ];
 
-                page.querySelector('.grpcFfmpegConfigurationForm').addEventListener('submit', function (e) {
+                function appendConsoleLines(lines) {
+                    const atBottom = consoleBox.scrollHeight - consoleBox.scrollTop - consoleBox.clientHeight < 40;
+                    for (const line of lines) {
+                        const text = get(line, 'Text');
+                        const span = document.createElement('span');
+                        span.textContent = text + '\n';
+                        // Color by the message only: "run:" lines show the command, which
+                        // may contain words like "error" (e.g. "-v error")
+                        const message = text.replace(/^\S+ \S+ \[\d+\] \S+ /, '');
+                        const match = message.startsWith('run:') ? null : consoleColors.find(([pattern]) => pattern.test(message));
+                        if (match) {
+                            span.style.color = match[1];
+                        }
+                        consoleBox.appendChild(span);
+                    }
+                    while (consoleBox.childNodes.length > 1000) {
+                        consoleBox.removeChild(consoleBox.firstChild);
+                    }
+                    if (atBottom) {
+                        consoleBox.scrollTop = consoleBox.scrollHeight;
+                    }
+                }
+
+                function pollConsole() {
+                    if (!document.body.contains(page)) {
+                        stopConsole();
+                        return;
+                    }
+                    if (!$('#consoleFollow').checked) {
+                        return;
+                    }
+                    api('GET', 'GrpcFfmpeg/Console?after=' + consoleLastId, true).then(result => {
+                        const lastId = get(result, 'LastId');
+                        if (lastId < consoleLastId) {
+                            // Jellyfin restarted
+                            consoleBox.textContent = '';
+                        }
+                        appendConsoleLines(get(result, 'Lines') || []);
+                        consoleLastId = lastId;
+                    }).catch(() => { /* try again on the next tick */ });
+                }
+
+                function startConsole() {
+                    stopConsole();
+                    consoleBox.textContent = '';
+                    consoleLastId = 0;
+                    pollConsole();
+                    consoleTimer = setInterval(pollConsole, 2000);
+                }
+
+                function stopConsole() {
+                    if (consoleTimer) {
+                        clearInterval(consoleTimer);
+                        consoleTimer = null;
+                    }
+                }
+
+                $('#consoleClear').addEventListener('click', function () {
+                    api('POST', 'GrpcFfmpeg/Console/Clear', false).then(() => { consoleBox.textContent = ''; });
+                });
+
+                page.addEventListener('pageshow', loadConfiguration);
+                page.addEventListener('pageshow', startConsole);
+                page.addEventListener('pagehide', stopConsole);
+
+                $('.grpcFfmpegConfigurationForm').addEventListener('submit', function (e) {
                     e.preventDefault();
                     Dashboard.showLoadingMsg();
-                    const form = this;
-
-                    ApiClient.getPluginConfiguration(pluginId).then(config => {
-                        // These are now internally managed by the plugin and hardcoded to true
-                        // config.CreateFfmpeg = form.querySelector('#createFfmpeg').checked;
-                        // config.CreateFfprobe = form.querySelector('#createFfprobe').checked;
-                        // config.CreateMediaInfo = form.querySelector('#createMediaInfo').checked;
-                        // config.CreateVaInfo = form.querySelector('#createVaInfo').checked;
-                        
-                        config.AutoSetFfmpegPath = form.querySelector('#autoSetFfmpegPath').checked; 
-                        config.UseSsl = form.querySelector('#useSsl').checked;
-                        config.GrpcHost = form.querySelector('#grpcHost').value;
-                        config.GrpcPort = parseInt(form.querySelector('#grpcPort').value) || 0;
-                        config.CertificatePath = form.querySelector('#certificatePath').value;
-                        config.AuthToken = form.querySelector('#authToken').value;
-
-                        return ApiClient.updatePluginConfiguration(pluginId, config);
-                    }).then(result => {
-                        Dashboard.processPluginConfigurationUpdateResult(result);
-                        loadConfiguration(); // Refresh data on page
-                        // No need to pass a promise along anymore
-                    }).catch(error => {
-                        Dashboard.hideLoadingMsg();
-                        console.error("Save error:", error);
-                        Dashboard.alert({
-                            title: "Save Failed",
-                            text: "An error occurred while saving configuration. Please check the browser console and server logs."
-                        });
-                    });
-                    
+                    saveConfiguration()
+                        .then(result => {
+                            Dashboard.processPluginConfigurationUpdateResult(result);
+                            return loadStatus();
+                        })
+                        .catch(() => Dashboard.alert('Saving failed, see the server log.'))
+                        .finally(() => Dashboard.hideLoadingMsg());
                     return false;
                 });
-                
-                page.querySelector('#deployButton').addEventListener('click', function () {
+
+                $('#testButton').addEventListener('click', function () {
                     Dashboard.showLoadingMsg();
-                    fetchWithAuth('GrpcFfmpeg/Deploy', 'POST', null)
-                        .then(response => {
-                            Dashboard.hideLoadingMsg();
-                            if (response.ok) {
-                                Dashboard.alert({
-                                    title: "Deployment Successful",
-                                    text: "Binaries and wrappers updated successfully."
-                                });
-                                loadConfiguration(); // Refresh deploy path display
-                            } else {
-                                response.json().then(error => {
-                                    console.error("Deploy error:", error);
-                                    Dashboard.alert({
-                                        title: "Deployment Error",
-                                        text: `Error deploying binaries: ${error.message}`
-                                    });
-                                }).catch(jsonError => { // Catch error if response.json() fails
-                                    console.error("Deploy error (non-JSON response):", deployResponse);
-                                    Dashboard.alert({
-                                        title: "Deployment Error",
-                                        text: "An unknown error occurred during deployment."
-                                    });
-                                });
-                            }
-                        }).catch(error => {
-                            Dashboard.hideLoadingMsg();
-                            console.error("Deployment process error:", error);
-                            Dashboard.alert({
-                                title: "Error",
-                                text: "An unexpected error occurred during deployment."
-                            });
-                        });
+                    $('#testResult').textContent = 'Testing…';
+                    saveConfiguration()
+                        .then(() => api('POST', 'GrpcFfmpeg/Test', true))
+                        .then(result => {
+                            const success = get(result, 'Success');
+                            const output = get(result, 'Output') || '';
+                            $('#testResult').textContent = success
+                                ? '✔ Connected: ' + output.split('\n')[0]
+                                : '✘ Failed: ' + output;
+                        })
+                        .catch(() => { $('#testResult').textContent = '✘ The test could not be run, see the server log.'; })
+                        .finally(() => { Dashboard.hideLoadingMsg(); loadStatus(); });
                 });
             })();
         </script>

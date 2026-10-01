@@ -4,24 +4,48 @@
     <TargetFramework>net9.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <Version>0.2.0.0</Version>
+    <AssemblyVersion>$(Version)</AssemblyVersion>
+    <FileVersion>$(Version)</FileVersion>
+    <!-- grpc-ffmpeg release whose client binaries are embedded in the plugin (needs grpc-ffmpeg.conf and FALLBACK_DIR support) -->
+    <!-- renovate: datasource=github-releases depName=CrystalNET-org/grpc-ffmpeg versioning=loose -->
+    <GrpcFfmpegVersion>8.1.3-7.8</GrpcFfmpegVersion>
+    <!-- Where the client binaries are downloaded to; pass -p:GrpcFfmpegAssetsDir=... to use local builds -->
+    <GrpcFfmpegAssetsDir Condition="'$(GrpcFfmpegAssetsDir)' == ''">$(BaseIntermediateOutputPath)grpc-ffmpeg\$(GrpcFfmpegVersion)\</GrpcFfmpegAssetsDir>
+    <GrpcFfmpegReleaseUrl>https://github.com/CrystalNET-org/grpc-ffmpeg/releases/download/$(GrpcFfmpegVersion)</GrpcFfmpegReleaseUrl>
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Jellyfin.Model" Version="10.11.6" />
-    <PackageReference Include="Jellyfin.Controller" Version="10.11.6" />
-    <PackageReference Include="Microsoft.Extensions.Http" Version="6.0.0" />
-    <PackageReference Include="YamlDotNet" Version="16.3.0" />
+    <!-- Provided by the Jellyfin server at runtime; not shipped with the plugin -->
+    <PackageReference Include="Jellyfin.Controller" Version="10.11.11" ExcludeAssets="runtime" />
+    <PackageReference Include="Jellyfin.Model" Version="10.11.11" ExcludeAssets="runtime" />
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
   </ItemGroup>
 
   <ItemGroup>
-    <EmbeddedResource Include="Assets\grpc-ffmpeg-linux-amd64" />
-    <EmbeddedResource Include="Assets\grpc-ffmpeg-linux-arm64" />
-    <EmbeddedResource Include="Assets\grpc-ffmpeg-windows-amd64.exe" />
     <EmbeddedResource Include="Web\config.html" />
   </ItemGroup>
 
-  <Target Name="PostBuild" AfterTargets="PostBuildEvent">
-    <Copy SourceFiles="$(NuGetPackageRoot)yamldotnet\16.3.0\lib\net8.0\YamlDotNet.dll" DestinationFolder="$(TargetDir)" />
+  <!-- Embed the grpc-ffmpeg client binaries (downloaded from the pinned release unless present) -->
+  <Target Name="DownloadGrpcFfmpegClients" BeforeTargets="PrepareForBuild">
+    <DownloadFile Condition="!Exists('$(GrpcFfmpegAssetsDir)grpc-ffmpeg-client-amd64')"
+                  SourceUrl="$(GrpcFfmpegReleaseUrl)/grpc-ffmpeg-client-amd64"
+                  DestinationFolder="$(GrpcFfmpegAssetsDir)" />
+    <DownloadFile Condition="!Exists('$(GrpcFfmpegAssetsDir)grpc-ffmpeg-client-arm64')"
+                  SourceUrl="$(GrpcFfmpegReleaseUrl)/grpc-ffmpeg-client-arm64"
+                  DestinationFolder="$(GrpcFfmpegAssetsDir)" />
+    <!-- Without a Windows build in the release, Windows is reported as unsupported -->
+    <DownloadFile Condition="!Exists('$(GrpcFfmpegAssetsDir)grpc-ffmpeg-client-windows-amd64.exe')"
+                  SourceUrl="$(GrpcFfmpegReleaseUrl)/grpc-ffmpeg-client-windows-amd64.exe"
+                  DestinationFolder="$(GrpcFfmpegAssetsDir)"
+                  ContinueOnError="WarnAndContinue" />
+    <ItemGroup>
+      <EmbeddedResource Include="$(GrpcFfmpegAssetsDir)grpc-ffmpeg-client-amd64" LogicalName="grpc-ffmpeg-client-linux-amd64" />
+      <EmbeddedResource Include="$(GrpcFfmpegAssetsDir)grpc-ffmpeg-client-arm64" LogicalName="grpc-ffmpeg-client-linux-arm64" />
+      <EmbeddedResource Include="$(GrpcFfmpegAssetsDir)grpc-ffmpeg-client-windows-amd64.exe"
+                        Condition="Exists('$(GrpcFfmpegAssetsDir)grpc-ffmpeg-client-windows-amd64.exe')"
+                        LogicalName="grpc-ffmpeg-client-windows-amd64.exe" />
+    </ItemGroup>
   </Target>
 
 </Project>

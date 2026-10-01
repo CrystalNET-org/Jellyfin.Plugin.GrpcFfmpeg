@@ -1,0 +1,8 @@
+when:
+  - event: [push, pull_request, manual]
+
+steps:
+  - name: build
+    image: mcr.microsoft.com/dotnet/sdk:9.0
+    commands:
+      - dotnet build -c Release Jellyfin.Plugin.GrpcFfmpeg/Jellyfin.Plugin.GrpcFfmpeg.csproj

@@ -31,3 +31,7 @@ TestResults/
 
 # Woodpecker CI artifacts
 *.zip
+
+# Downloaded grpc-ffmpeg client binaries
+Jellyfin.Plugin.GrpcFfmpeg/Assets/
+artifacts/

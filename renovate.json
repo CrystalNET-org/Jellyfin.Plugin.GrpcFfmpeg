@@ -1,0 +1,51 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended"
+  ],
+  "dependencyDashboard": true,
+  "customManagers": [
+    {
+      "customType": "regex",
+      "description": "grpc-ffmpeg release whose client binaries are embedded",
+      "managerFilePatterns": [
+        "/\\.csproj$/"
+      ],
+      "matchStrings": [
+        "<!-- renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+) versioning=(?<versioning>\\S+) -->\\s*<GrpcFfmpegVersion>(?<currentValue>[^<]+)</GrpcFfmpegVersion>"
+      ]
+    }
+  ],
+  "packageRules": [
+    {
+      "description": "New grpc-ffmpeg clients: automerge once the release's binaries are published; the merge is released automatically (.woodpecker/auto_release.yaml)",
+      "matchPackageNames": [
+        "CrystalNET-org/grpc-ffmpeg"
+      ],
+      "minimumReleaseAge": "1 hour",
+      "automerge": true,
+      "automergeType": "pr"
+    },
+    {
+      "description": "Jellyfin packages: stay within the targeted plugin ABI (10.11)",
+      "matchPackageNames": [
+        "Jellyfin.Controller",
+        "Jellyfin.Model"
+      ],
+      "allowedVersions": "<10.12",
+      "groupName": "Jellyfin packages"
+    },
+    {
+      "description": "Jellyfin packages: automerge patch updates",
+      "matchPackageNames": [
+        "Jellyfin.Controller",
+        "Jellyfin.Model"
+      ],
+      "matchUpdateTypes": [
+        "patch"
+      ],
+      "automerge": true,
+      "automergeType": "pr"
+    }
+  ]
+}
