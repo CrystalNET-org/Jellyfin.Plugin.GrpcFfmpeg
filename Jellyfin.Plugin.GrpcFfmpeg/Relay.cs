@@ -200,13 +200,32 @@ namespace Jellyfin.Plugin.GrpcFfmpeg
                 && new FileInfo(path).Length == content.Length
                 && SHA256.HashData(File.ReadAllBytes(path)).AsSpan().SequenceEqual(SHA256.HashData(content)))
             {
+                if (!OperatingSystem.IsWindows() && File.GetUnixFileMode(path) != mode)
+                {
+                    File.SetUnixFileMode(path, mode);
+                }
+
                 return false;
             }
 
             var temporary = path + ".new";
-            File.WriteAllBytes(temporary, content);
+            File.Delete(temporary);
+            var options = new FileStreamOptions { Mode = FileMode.CreateNew, Access = FileAccess.Write };
             if (!OperatingSystem.IsWindows())
             {
+                // Created with the final permissions, so e.g. the token in the config
+                // file is never readable by others, not even briefly
+                options.UnixCreateMode = mode;
+            }
+
+            using (var stream = new FileStream(temporary, options))
+            {
+                stream.Write(content);
+            }
+
+            if (!OperatingSystem.IsWindows())
+            {
+                // Exactly this mode, regardless of the umask
                 File.SetUnixFileMode(temporary, mode);
             }
 

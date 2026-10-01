@@ -23,8 +23,9 @@ environment variables and no change to Jellyfin's ffmpeg path are needed.
   `mediainfo` and `vainfo` calls of other plugins.
 - **Transparent:** output, progress and exit codes arrive as if ffmpeg ran locally, and
   stopping a transcode stops it on the worker.
-- **Fallback:** if no worker is reachable, commands run on the local ffmpeg, so Jellyfin keeps
-  working and starting while the workers are down.
+- **Fallback:** if no worker is reachable or the workers reject the token, commands run on
+  the local ffmpeg, so Jellyfin keeps working and starting. The settings page and Jellyfin's log
+  show when that happens.
 - **Setup check:** one click tests the connection, checks that the workers share Jellyfin's
   directories, and warns about mismatched ffmpeg versions and overriding environment variables.
 - **Live console:** every command with its exit code, duration and, for failures, ffmpeg's
@@ -93,9 +94,9 @@ folder in Jellyfin's `plugins` directory.
 | Host, Port | `ffmpeg-workers`, `50051` | Address of the worker, or of the Service or load balancer in front of the workers. |
 | Authentication token | | The workers' `VALID_TOKEN`. |
 | Use TLS, CA certificate path | off | Connect over TLS, verifying the worker with this certificate. |
-| Run commands locally when no worker is reachable | on | The fallback. Recommended, because Jellyfin does not start if its ffmpeg check fails. |
+| Run commands locally when no worker is reachable | on | The fallback, also used when the workers reject the token. Recommended, because Jellyfin does not start if its ffmpeg check fails. |
 | Local ffmpeg directory | *(detected)* | ffmpeg for the fallback. Empty means the ffmpeg Jellyfin would use without the plugin. |
-| Attempts before giving up | `2` | Attempts while no worker is reachable or all are busy, with increasing delays. Lower values make the fallback start sooner. |
+| Attempts before giving up | `2` | Attempts while no worker is reachable or all are busy, waiting 1, 2, 4 and then 5 seconds between them. Lower values make the fallback start sooner. |
 | Connection timeout | `5` s | Time to wait for a connection per attempt. |
 | Use gRPC workers for ffmpeg | off | Makes Jellyfin use the workers. Takes effect after a restart. |
 
@@ -111,6 +112,13 @@ All settings except the last apply to the next command, without a restart.
   images set, so a plugin cannot change it through the settings. Instead, when activated, the
   plugin creates Jellyfin's ffmpeg service itself, with the path pointing at the client. When
   not activated, Jellyfin behaves as if the plugin was not installed.
+- **Fallback:** Jellyfin checks ffmpeg at startup and does not start if that fails. With the
+  fallback, a command runs on the local ffmpeg when no worker is reachable or the workers
+  reject the token, so Jellyfin starts, and library scans and direct play keep working. Transcodes
+  that need the workers' hardware acceleration fail until the workers are back. After a command
+  found no worker, commands in the next 20 seconds go to the fallback right away. While commands
+  fall back, the status on the settings page shows a warning with the reason, and Jellyfin's log
+  has a warning; both clear once a command runs on the workers again.
 - Jellyfin detects the ffmpeg version at startup, from the workers or, if they are down, from
   the local ffmpeg, and picks ffmpeg options for that version. That is why the workers and
   the local ffmpeg need the same major version.

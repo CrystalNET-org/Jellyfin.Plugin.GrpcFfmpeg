@@ -61,6 +61,7 @@ namespace Jellyfin.Plugin.GrpcFfmpeg.Controllers
                 RestartRequired = plugin.Configuration.Enabled != active,
                 plugin.FallbackDirectory,
                 OverridingEnvironmentVariables = SetupCheck.OverridingEnvironmentVariables(),
+                Fallback = ActivityConsole.ActiveFallback(),
             };
         }
 

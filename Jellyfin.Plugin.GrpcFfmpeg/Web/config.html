@@ -58,7 +58,11 @@
                                 <span>Run commands locally when no worker is reachable</span>
                             </label>
                             <div class="fieldDescription checkboxFieldDescription">
-                                Recommended: Jellyfin does not start if its ffmpeg check fails, e.g. while all workers are down.
+                                Recommended. Commands run on this server's ffmpeg when no worker is reachable or the workers reject the token.
+                                Jellyfin checks ffmpeg at startup and does not start if that fails, so without the fallback a worker outage or
+                                a wrong token keeps Jellyfin from starting. With the fallback, Jellyfin starts and library scans and direct play
+                                keep working; transcodes that need the workers' hardware acceleration fail until the workers are back.
+                                The status above shows when commands fall back.
                             </div>
                         </div>
                         <div class="inputContainer">
@@ -67,7 +71,7 @@
                         </div>
                         <div class="inputContainer">
                             <input type="number" id="retries" is="emby-input" label="Attempts before giving up" min="1" max="10" />
-                            <div class="fieldDescription">Attempts while no worker is reachable or all are busy, with increasing delays (1s, 2s, 4s, …).</div>
+                            <div class="fieldDescription">Attempts while no worker is reachable or all are busy, waiting 1s, 2s, 4s and then 5s between them. After a command found no worker, commands in the next 20 seconds go to the fallback right away.</div>
                         </div>
                         <div class="inputContainer">
                             <input type="number" id="connectTimeout" is="emby-input" label="Connection timeout (seconds)" min="1" max="60" />
@@ -140,6 +144,12 @@
                             text += ' <strong>Restart Jellyfin to apply the activation setting.</strong>';
                         }
                         text += '<br/>Client directory: ' + escapeHtml(get(status, 'DeployDirectory'));
+                        const fallback = get(status, 'Fallback');
+                        if (fallback) {
+                            text += '<br/><span style="color: #f77;">⚠ Commands are running on the local ffmpeg instead of the workers: '
+                                + escapeHtml(get(fallback, 'Reason')) + ' (latest at ' + escapeHtml(get(fallback, 'Since'))
+                                + ' UTC). This clears once a command runs on the workers again; <em>Save and test connection</em> shows what is wrong.</span>';
+                        }
                         const overriding = get(status, 'OverridingEnvironmentVariables') || [];
                         if (overriding.length) {
                             text += '<br/><span style="color: #fc6;">⚠ Jellyfin\'s environment sets '
@@ -190,6 +200,7 @@
                 const consoleBox = $('#grpcFfmpegConsole');
                 let consoleLastId = 0;
                 let consoleTimer = null;
+                let pollCount = 0;
                 const consoleColors = [
                     [/exit 0 after/, '#8c8'],
                     [/(exit -?[1-9]|error|failed|Invalid token|not set|No worker|no local fallback)/i, '#f77'],
@@ -224,6 +235,10 @@
                     if (!document.body.contains(page)) {
                         stopConsole();
                         return;
+                    }
+                    // Keep the status (e.g. an active fallback) current
+                    if (++pollCount % 5 === 0) {
+                        loadStatus();
                     }
                     if (!$('#consoleFollow').checked) {
                         return;

@@ -1,5 +1,6 @@
 using System.Runtime.InteropServices;
 using System.Text;
+using System.Text.RegularExpressions;
 using Microsoft.Extensions.Logging;
 
 namespace Jellyfin.Plugin.GrpcFfmpeg
@@ -14,7 +15,7 @@ namespace Jellyfin.Plugin.GrpcFfmpeg
     /// their lines without blocking. Elsewhere (Windows) the clients append to a
     /// file (rotated at 1 MB by the client) whose new lines are read here.
     /// </remarks>
-    internal static class ActivityConsole
+    internal static partial class ActivityConsole
     {
         public const int Capacity = 1000;
 
@@ -22,6 +23,8 @@ namespace Jellyfin.Plugin.GrpcFfmpeg
         private static readonly Queue<ConsoleLine> _lines = new();
         private static long _lastId;
         private static string? _source;
+        private static ILogger? _logger;
+        private static FallbackState? _fallback;
 
         /// <summary>
         /// Gets the path the clients write their activity log to.
@@ -43,6 +46,7 @@ namespace Jellyfin.Plugin.GrpcFfmpeg
                 }
 
                 _source = source;
+                _logger = logger;
             }
 
             if (!OperatingSystem.IsWindows())
@@ -75,6 +79,18 @@ namespace Jellyfin.Plugin.GrpcFfmpeg
             }
         }
 
+        /// <summary>
+        /// Gets the latest fallback to the local ffmpeg, unless a command has run on the
+        /// workers since.
+        /// </summary>
+        public static FallbackState? ActiveFallback()
+        {
+            lock (_lock)
+            {
+                return _fallback;
+            }
+        }
+
         public static void Clear()
         {
             lock (_lock)
@@ -92,6 +108,40 @@ namespace Jellyfin.Plugin.GrpcFfmpeg
                 {
                     _lines.Dequeue();
                 }
+
+                TrackFallback(text);
+            }
+        }
+
+        /// <summary>
+        /// Follows whether commands run on the workers or on the local fallback, from the
+        /// clients' "fallback (reason): running ... locally" and "exit ..." lines. Logs
+        /// changes to Jellyfin's log, so they are not only visible in the console.
+        /// </summary>
+        private static void TrackFallback(string text)
+        {
+            var match = LogLineRegex().Match(text);
+            if (!match.Success)
+            {
+                return;
+            }
+
+            var message = match.Groups["message"].Value;
+            var fallback = FallbackRegex().Match(message);
+            if (fallback.Success)
+            {
+                var reason = fallback.Groups["reason"].Success ? fallback.Groups["reason"].Value : "workers unreachable";
+                if (_fallback?.Reason != reason)
+                {
+                    _logger?.LogWarning("gRPC-ffmpeg: commands are running on the local ffmpeg: {Reason}", reason);
+                }
+
+                _fallback = new FallbackState(match.Groups["time"].Value, reason);
+            }
+            else if (message.StartsWith("exit ", StringComparison.Ordinal) && _fallback is not null)
+            {
+                _logger?.LogInformation("gRPC-ffmpeg: commands are running on the workers again");
+                _fallback = null;
             }
         }
 
@@ -188,7 +238,23 @@ namespace Jellyfin.Plugin.GrpcFfmpeg
 
         [DllImport("libc", SetLastError = true)]
         private static extern int mkfifo(string pathname, uint mode);
+
+        // "<date> <time> [pid] <binary> <message>"
+        [GeneratedRegex(@"^(?<time>\S+ \S+) \[\d+\] \S+ (?<message>.*)$")]
+        private static partial Regex LogLineRegex();
+
+        // Current clients: "fallback (<reason>): running <path> locally"; older ones:
+        // "No worker reachable, running <path> locally"
+        [GeneratedRegex(@"^(?:fallback \((?<reason>.*)\): running .+ locally|No worker reachable, running .+ locally)$")]
+        private static partial Regex FallbackRegex();
     }
+
+    /// <summary>
+    /// Commands run on the local ffmpeg instead of the workers.
+    /// </summary>
+    /// <param name="Since">Time (UTC) of the latest command that fell back.</param>
+    /// <param name="Reason">Why, e.g. "workers unreachable" or "token rejected by the worker".</param>
+    internal sealed record FallbackState(string Since, string Reason);
 
     /// <summary>
     /// A line of the activity log.
