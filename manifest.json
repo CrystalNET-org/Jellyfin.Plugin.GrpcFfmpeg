@@ -9,6 +9,14 @@
     "imageUrl": "https://raw.githubusercontent.com/CrystalNET-org/Jellyfin.Plugin.GrpcFfmpeg/main/images/thumb.png",
     "versions": [
       {
+        "version": "0.2.1.0",
+        "changelog": "- Link the settings page in the dashboard sidebar\n- Add a plugin image\n- release: skip CI for the manifest commit",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/CrystalNET-org/Jellyfin.Plugin.GrpcFfmpeg/releases/download/0.2.1/gRPC-ffmpeg_0.2.1.0.zip",
+        "checksum": "ea9631be4f74c1e11b5de501eac3d2ec",
+        "timestamp": "2026-10-01T12:26:21Z"
+      },
+      {
         "version": "0.2.0.0",
         "changelog": "Initial release",
         "targetAbi": "10.11.0.0",
