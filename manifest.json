@@ -6,7 +6,7 @@
     "overview": "Offload transcoding, probing and image extraction to grpc-ffmpeg workers, with a local fallback.",
     "owner": "CrystalNET-org",
     "category": "General",
-    "imageUrl": "",
+    "imageUrl": "https://raw.githubusercontent.com/CrystalNET-org/Jellyfin.Plugin.GrpcFfmpeg/main/images/thumb.png",
     "versions": [
       {
         "version": "0.2.0.0",

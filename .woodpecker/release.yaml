@@ -13,9 +13,11 @@ steps:
       - dotnet build -c Release -p:Version=$VERSION Jellyfin.Plugin.GrpcFfmpeg/Jellyfin.Plugin.GrpcFfmpeg.csproj
       - mkdir -p artifacts/package
       - cp Jellyfin.Plugin.GrpcFfmpeg/bin/Release/net9.0/Jellyfin.Plugin.GrpcFfmpeg.dll artifacts/package/
+      # Shown for the installed plugin; the catalog uses imageUrl in manifest.json
+      - cp images/thumb.png artifacts/package/
       - TIMESTAMP=$(date -u +%Y-%m-%dT%H:%M:%SZ)
       - >-
-        printf '{"guid":"5fce29c6-1366-41cd-9b05-6447a531b590","name":"gRPC-ffmpeg","description":"Runs Jellyfin'"'"'s ffmpeg commands on remote grpc-ffmpeg workers.","overview":"","owner":"CrystalNET-org","category":"General","version":"%s","targetAbi":"%s","timestamp":"%s","changelog":"","status":"Active","autoUpdate":true,"assemblies":[]}\n'
+        printf '{"guid":"5fce29c6-1366-41cd-9b05-6447a531b590","name":"gRPC-ffmpeg","description":"Runs Jellyfin'"'"'s ffmpeg commands on remote grpc-ffmpeg workers.","overview":"","owner":"CrystalNET-org","category":"General","version":"%s","targetAbi":"%s","timestamp":"%s","changelog":"","status":"Active","autoUpdate":true,"imagePath":"thumb.png","assemblies":[]}\n'
         "$VERSION" "$TARGET_ABI" "$TIMESTAMP" > artifacts/package/meta.json
       - cd artifacts/package && zip -j ../gRPC-ffmpeg_$VERSION.zip ./* && cd ../..
       - md5sum artifacts/gRPC-ffmpeg_$VERSION.zip | cut -d' ' -f1 > artifacts/checksum
