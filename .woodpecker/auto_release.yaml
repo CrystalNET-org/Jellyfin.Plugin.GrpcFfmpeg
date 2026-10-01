@@ -2,6 +2,11 @@
 # release or the Jellyfin packages (e.g. an automerged Renovate update), see
 # scripts/next-release-tag.sh. The release pipeline then publishes the plugin
 # and adds it to manifest.json.
+# Only tag once the builds of this commit succeeded; a failed build skips
+# the tag. The tag can be pushed by hand after fixing it.
+depends_on:
+  - build
+
 when:
   - event: push
     branch: ${CI_REPO_DEFAULT_BRANCH}
