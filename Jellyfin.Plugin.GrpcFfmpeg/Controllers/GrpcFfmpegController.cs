@@ -1,9 +1,11 @@
-using System.Diagnostics;
 using MediaBrowser.Common.Api;
+using MediaBrowser.Controller.Configuration;
+using MediaBrowser.Controller.Library;
 using MediaBrowser.Controller.MediaEncoding;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Configuration;
 
 namespace Jellyfin.Plugin.GrpcFfmpeg.Controllers
 {
@@ -15,12 +17,21 @@ namespace Jellyfin.Plugin.GrpcFfmpeg.Controllers
     [Authorize(Policy = Policies.RequiresElevation)]
     public class GrpcFfmpegController : ControllerBase
     {
-        private static readonly TimeSpan _testTimeout = TimeSpan.FromSeconds(30);
         private readonly IMediaEncoder _mediaEncoder;
+        private readonly IServerConfigurationManager _configurationManager;
+        private readonly ILibraryManager _libraryManager;
+        private readonly IConfiguration _startupConfig;
 
-        public GrpcFfmpegController(IMediaEncoder mediaEncoder)
+        public GrpcFfmpegController(
+            IMediaEncoder mediaEncoder,
+            IServerConfigurationManager configurationManager,
+            ILibraryManager libraryManager,
+            IConfiguration startupConfig)
         {
             _mediaEncoder = mediaEncoder;
+            _configurationManager = configurationManager;
+            _libraryManager = libraryManager;
+            _startupConfig = startupConfig;
         }
 
         /// <summary>
@@ -49,6 +60,7 @@ namespace Jellyfin.Plugin.GrpcFfmpeg.Controllers
                 Active = active,
                 RestartRequired = plugin.Configuration.Enabled != active,
                 plugin.FallbackDirectory,
+                OverridingEnvironmentVariables = SetupCheck.OverridingEnvironmentVariables(),
             };
         }
 
@@ -92,53 +104,21 @@ namespace Jellyfin.Plugin.GrpcFfmpeg.Controllers
         }
 
         /// <summary>
-        /// Runs "ffmpeg -version" on a worker with the saved settings, without the local fallback.
+        /// Tests the setup with the saved settings, without the local fallback: the connection,
+        /// the ffmpeg version, and whether the workers share Jellyfin's directories.
         /// </summary>
         [HttpPost("Test")]
         [ProducesResponseType(StatusCodes.Status200OK)]
         public async Task<ActionResult<object>> Test()
         {
-            var ffmpegPath = Plugin.Instance?.Prepare();
-            if (ffmpegPath is null)
+            var plugin = Plugin.Instance;
+            if (plugin?.Prepare() is null)
             {
                 return Problem("The client could not be deployed, see the server log.");
             }
 
-            var startInfo = new ProcessStartInfo(ffmpegPath)
-            {
-                RedirectStandardInput = true,
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-                UseShellExecute = false,
-            };
-            startInfo.ArgumentList.Add("-hide_banner");
-            startInfo.ArgumentList.Add("-version");
-            // Test the worker itself, not the fallback, and fail fast
-            startInfo.Environment["FALLBACK_DIR"] = string.Empty;
-            startInfo.Environment["RETRIES"] = "1";
-
-            using var process = Process.Start(startInfo)!;
-            process.StandardInput.Close();
-            var stdout = process.StandardOutput.ReadToEndAsync();
-            var stderr = process.StandardError.ReadToEndAsync();
-            using var timeout = new CancellationTokenSource(_testTimeout);
-            try
-            {
-                await process.WaitForExitAsync(timeout.Token).ConfigureAwait(false);
-            }
-            catch (OperationCanceledException)
-            {
-                process.Kill(entireProcessTree: true);
-                return new { Success = false, ExitCode = -1, Output = $"No answer within {_testTimeout.TotalSeconds} seconds" };
-            }
-
-            var output = process.ExitCode == 0 ? await stdout.ConfigureAwait(false) : await stderr.ConfigureAwait(false);
-            return new
-            {
-                Success = process.ExitCode == 0,
-                process.ExitCode,
-                Output = output.Trim(),
-            };
+            var check = new SetupCheck(plugin.DeployDirectory, _configurationManager, _libraryManager, _startupConfig);
+            return await check.RunAsync().ConfigureAwait(false);
         }
     }
 }

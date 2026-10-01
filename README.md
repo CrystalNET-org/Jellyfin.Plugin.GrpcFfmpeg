@@ -25,15 +25,18 @@ environment variables and no change to Jellyfin's ffmpeg path are needed.
   stopping a transcode stops it on the worker.
 - **Fallback:** if no worker is reachable, commands run on the local ffmpeg, so Jellyfin keeps
   working and starting while the workers are down.
+- **Setup check:** one click tests the connection, checks that the workers share Jellyfin's
+  directories, and warns about mismatched ffmpeg versions and overriding environment variables.
 - **Live console:** every command with its exit code, duration and, for failures, ffmpeg's
   last error lines, including calls whose output Jellyfin discards.
 - **Updates through the plugin catalog:** new grpc-ffmpeg releases are packaged automatically.
 
 ## Screenshots
 
-The settings page, with a successful connection test:
+The settings page, with a passing setup test: the workers are reachable and share Jellyfin's
+directories.
 
-![Settings page with the worker settings and a successful connection test](images/settings.png)
+![Settings page with the worker settings and a passing setup test](images/settings.png)
 
 The console lists every command run through the workers, here a library scan's probe, an
 image extraction and a transcode:
@@ -53,9 +56,12 @@ image extraction and a transcode:
   | 12.x | `8.1.3-7.8` or later |
   | 10.11 | `7.1.4-7.7` |
 
-- **Shared paths:** the media library and Jellyfin's transcode and cache directories must be
-  mounted at the same paths on Jellyfin and on every worker (e.g. over NFS). The workers read
-  and write those files directly.
+- **Shared paths:** the workers read and write Jellyfin's files directly, so these must be
+  mounted at the same paths on Jellyfin and on every worker (e.g. over NFS):
+  - the media library,
+  - Jellyfin's cache directory, including the transcode directory,
+  - Jellyfin's temp directory, `/tmp/jellyfin` by default, where image extraction and trickplay
+    write their output. Mount a shared volume there on Jellyfin and on the workers.
 - **One kind of GPU:** all workers need the same kind of GPU (e.g. all Intel QSV), matching
   the hardware acceleration set in Jellyfin.
 
@@ -67,7 +73,9 @@ image extraction and a transcode:
    ```
 2. Install **gRPC-ffmpeg** from the catalog and restart Jellyfin.
 3. Open **gRPC-ffmpeg** in the dashboard sidebar, below *Plugins*. Enter the worker's host,
-   port and token (the worker's `VALID_TOKEN`), then click **Save and test connection**.
+   port and token (the worker's `VALID_TOKEN`), then click **Save and test connection**. The
+   test also has the workers read and write test files in Jellyfin's transcode and temp
+   directories and probe a file of each library, and shows what is not shared yet.
 4. Tick **Use gRPC workers for ffmpeg**, save, and restart Jellyfin.
 
 After the restart, the status on the settings page shows that Jellyfin runs ffmpeg through
@@ -124,7 +132,8 @@ If Jellyfin runs in an image that already contains a grpc-ffmpeg client:
 
 - **Remove the client's environment variables** (`GRPC_HOST`, `AUTH_TOKEN`, …) from the
   container. Environment variables override the client's config file, so they would take
-  precedence over the plugin's settings.
+  precedence over the plugin's settings. The status on the settings page lists any that are
+  set.
 - **Set the local ffmpeg directory** on the settings page to the real local ffmpeg, e.g.
   `/usr/lib/jellyfin-ffmpeg`, as long as the image's client is still Jellyfin's ffmpeg path.
   Otherwise the fallback runs that client, which tries the workers again.
@@ -139,9 +148,14 @@ rejected call.
   worker's `VALID_TOKEN`.
 - **The test fails with `Unavailable`:** the host or port is wrong, or the worker is not
   reachable from Jellyfin.
+- **The test reports a directory as not shared:** the workers do not see that directory at
+  the same path, see Requirements. Fix it before activating the plugin, or the commands
+  writing there fail.
+- **The test warns about the ffmpeg version:** use workers with the same ffmpeg major version
+  as Jellyfin's local ffmpeg, see Requirements.
 - **The status says a restart is required:** the activation changed since Jellyfin started.
-- **Commands fail with "No such file or directory":** the paths are not shared, see
-  Requirements.
+- **Commands fail with "No such file or directory":** a path is not shared; run the test to
+  see which.
 - **The console shows `exit 1` for `-init_hw_device` commands at startup:** that is how
   Jellyfin checks VAAPI and Vulkan. These commands have no input or output, so ffmpeg always
   exits with 1. Jellyfin reads the driver details from their error output.

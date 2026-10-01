@@ -14,7 +14,7 @@
                     </div>
                     <p>Runs Jellyfin's ffmpeg and ffprobe commands on remote
                         <a is="emby-linkbutton" class="button-link" href="https://github.com/CrystalNET-org/grpc-ffmpeg" target="_blank">grpc-ffmpeg</a>
-                        workers. Media, transcode and cache directories must be available at the same paths on Jellyfin and on the workers.</p>
+                        workers. The media library and Jellyfin's transcode, cache and temp directories must be available at the same paths on Jellyfin and on the workers; <em>Save and test connection</em> checks them.</p>
 
                     <div class="verticalSection">
                         <h3 class="sectionTitle">Status</h3>
@@ -140,6 +140,12 @@
                             text += ' <strong>Restart Jellyfin to apply the activation setting.</strong>';
                         }
                         text += '<br/>Client directory: ' + escapeHtml(get(status, 'DeployDirectory'));
+                        const overriding = get(status, 'OverridingEnvironmentVariables') || [];
+                        if (overriding.length) {
+                            text += '<br/><span style="color: #fc6;">⚠ Jellyfin\'s environment sets '
+                                + escapeHtml(overriding.join(', '))
+                                + ', which override the settings on this page. Remove them from Jellyfin\'s container or service.</span>';
+                        }
                         $('#grpcFfmpegStatus').innerHTML = text;
                         $('#detectedFallback').textContent = get(status, 'FallbackDirectory') || 'not found';
                     }).catch(() => {
@@ -271,15 +277,27 @@
 
                 $('#testButton').addEventListener('click', function () {
                     Dashboard.showLoadingMsg();
-                    $('#testResult').textContent = 'Testing…';
+                    $('#testResult').textContent = 'Testing the connection and the shared directories…';
                     saveConfiguration()
                         .then(() => api('POST', 'GrpcFfmpeg/Test', true))
                         .then(result => {
-                            const success = get(result, 'Success');
                             const output = get(result, 'Output') || '';
-                            $('#testResult').textContent = success
-                                ? '✔ Connected: ' + output.split('\n')[0]
-                                : '✘ Failed: ' + output;
+                            if (!get(result, 'Success')) {
+                                $('#testResult').textContent = '✘ Failed: ' + output;
+                                return;
+                            }
+                            const lines = ['<span style="color: #8c8;">✔ Connected: ' + escapeHtml(output.split('\n')[0]) + '</span>'];
+                            for (const check of get(result, 'Checks') || []) {
+                                const ok = get(check, 'Ok');
+                                const path = get(check, 'Path');
+                                lines.push('<span style="color: ' + (ok ? '#8c8' : '#f77') + ';">' + (ok ? '✔ ' : '✘ ')
+                                    + escapeHtml(get(check, 'Name')) + (path ? ' (' + escapeHtml(path) + ')' : '') + ': '
+                                    + escapeHtml(get(check, 'Message')) + '</span>');
+                            }
+                            for (const warning of get(result, 'Warnings') || []) {
+                                lines.push('<span style="color: #fc6;">⚠ ' + escapeHtml(warning) + '</span>');
+                            }
+                            $('#testResult').innerHTML = lines.join('<br/>');
                         })
                         .catch(() => { $('#testResult').textContent = '✘ The test could not be run, see the server log.'; })
                         .finally(() => { Dashboard.hideLoadingMsg(); loadStatus(); });
