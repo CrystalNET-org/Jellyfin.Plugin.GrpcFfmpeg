@@ -12,6 +12,18 @@ variables and no manual `JELLYFIN_FFMPEG` change are needed.
 
 > This plugin is still young. Test it on a non-critical server first.
 
+## Screenshots
+
+The settings page, reached through **gRPC-ffmpeg** in the dashboard sidebar, with a
+successful connection test:
+
+![Settings page with the worker settings and a successful connection test](images/settings.png)
+
+The live console below it lists every command run through the client: a library scan's
+probe, an image extraction and a transcode, each with its exit code and duration:
+
+![Console with ffprobe, image extraction and transcode commands](images/console.png)
+
 ## Requirements
 
 - Jellyfin 10.11 or 12.x on Linux (amd64 or arm64). A Windows (amd64) client is included
