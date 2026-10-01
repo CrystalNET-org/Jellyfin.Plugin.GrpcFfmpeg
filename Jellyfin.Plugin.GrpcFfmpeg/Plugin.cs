@@ -82,6 +82,9 @@ namespace Jellyfin.Plugin.GrpcFfmpeg
                 {
                     Name = "gRPC-ffmpeg",
                     EmbeddedResourcePath = GetType().Namespace + ".Web.config.html",
+                    // Linked in the dashboard sidebar, below Plugins
+                    EnableInMainMenu = true,
+                    MenuIcon = "memory",
                 },
             };
         }
