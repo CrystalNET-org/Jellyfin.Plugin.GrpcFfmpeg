@@ -4,7 +4,7 @@ when:
 
 steps:
   - name: package
-    image: mcr.microsoft.com/dotnet/sdk:9.0
+    image: mcr.microsoft.com/dotnet/sdk:11.0
     environment:
       TARGET_ABI: "10.11.0.0"
     commands:
