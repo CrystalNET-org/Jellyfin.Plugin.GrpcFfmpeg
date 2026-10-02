@@ -46,6 +46,16 @@
       ],
       "automerge": true,
       "automergeType": "pr"
+    },
+    {
+      "description": "CI .NET SDK: stay on the major version of the plugin's target framework (net9.0, required by Jellyfin 10.11); move SDK, target framework and Jellyfin packages together when dropping 10.11",
+      "matchDatasources": [
+        "docker"
+      ],
+      "matchPackageNames": [
+        "mcr.microsoft.com/dotnet/sdk"
+      ],
+      "allowedVersions": "<10"
     }
   ]
 }
