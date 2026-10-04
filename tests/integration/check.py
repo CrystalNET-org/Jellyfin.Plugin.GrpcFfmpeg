@@ -152,7 +152,8 @@ def main():
     print("Plugin status", flush=True)
     status, plugin = call("GET", "/GrpcFfmpeg/Status")
     check(status == 200 and plugin.get("Active"), "plugin is active (Jellyfin runs ffmpeg through the client)")
-    check(plugin.get("HardwareClassesActive"), "hardware classes are active")
+    check(plugin.get("HardwareClassesActive"),
+          f"hardware classes are active ({plugin.get('HardwareClassesUnavailable') or 'registered'})")
     check(not plugin.get("RestartRequired"), "no restart required")
     check("intel=" in (plugin.get("ClassAddresses") or "") and "nvidia=" in (plugin.get("ClassAddresses") or ""),
           f"CLASS_ADDRESSES written ({plugin.get('ClassAddresses')})")

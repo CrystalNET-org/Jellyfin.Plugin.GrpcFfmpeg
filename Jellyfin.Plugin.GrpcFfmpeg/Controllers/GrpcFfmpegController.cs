@@ -63,8 +63,10 @@ namespace Jellyfin.Plugin.GrpcFfmpeg.Controllers
                 ActiveFfmpegPath = _mediaEncoder.EncoderPath,
                 Active = active,
                 RestartRequired = config.Enabled != active
-                    || (config.Enabled && config.EnableHardwareClasses) != HardwareClasses.HardwareClassContext.Active,
+                    || ((config.Enabled && config.EnableHardwareClasses) != HardwareClasses.HardwareClassContext.Active
+                        && PluginServiceRegistrator.HardwareClassesUnavailable is null),
                 HardwareClassesActive = HardwareClasses.HardwareClassContext.Active,
+                HardwareClassesUnavailable = PluginServiceRegistrator.HardwareClassesUnavailable,
                 ClassAddresses = Relay.ClassAddresses(config),
                 HardwareClasses = HardwareClassStatus(config),
                 plugin.FallbackDirectory,

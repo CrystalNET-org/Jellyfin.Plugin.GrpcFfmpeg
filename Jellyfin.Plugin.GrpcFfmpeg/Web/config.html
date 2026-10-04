@@ -282,6 +282,11 @@
                         if (get(status, 'RestartRequired')) {
                             text += ' <strong>Restart Jellyfin to apply the activation or hardware class setting.</strong>';
                         }
+                        const classesUnavailable = get(status, 'HardwareClassesUnavailable');
+                        if (classesUnavailable && $('#enableHardwareClasses').checked) {
+                            text += '<br/><span style="color: #fc6;">⚠ Hardware classes are unavailable with this Jellyfin version, so all sessions use Jellyfin\'s transcoding settings: '
+                                + escapeHtml(classesUnavailable) + '</span>';
+                        }
                         if (get(status, 'HardwareClassesActive')) {
                             text += '<br/>Hardware classes (experimental): ' + escapeHtml(get(status, 'ClassAddresses') || 'no class enabled');
                             const classes = get(status, 'HardwareClasses') || {};

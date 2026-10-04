@@ -43,7 +43,38 @@ namespace Jellyfin.Plugin.GrpcFfmpeg
             }
 
             serviceCollection.AddSingleton<IMediaEncoder>(services => CreateMediaEncoder(services, encoderType));
-            RegisterHardwareClasses(serviceCollection);
+            TryRegisterHardwareClasses(serviceCollection, RegisterHardwareClasses);
+        }
+
+        /// <summary>
+        /// Gets why the experimental hardware classes could not be registered, or null.
+        /// </summary>
+        public static string? HardwareClassesUnavailable { get; private set; }
+
+        /// <summary>
+        /// Registers the experimental hardware classes so that no failure there can cost the
+        /// relay: they run on every start, also with the feature off, and a type a future
+        /// Jellyfin version no longer has would surface here. The registrations are collected
+        /// first and only added if all of them succeeded, so the feature is never half-wired.
+        /// </summary>
+        internal static void TryRegisterHardwareClasses(IServiceCollection serviceCollection, Action<IServiceCollection, IServiceCollection> register)
+        {
+            try
+            {
+                var registrations = new ServiceCollection();
+                register(serviceCollection, registrations);
+                foreach (var registration in registrations)
+                {
+                    serviceCollection.Add(registration);
+                }
+
+                HardwareClassesUnavailable = null;
+            }
+            catch (Exception ex)
+            {
+                // No logger yet at this point; reported at startup and on the status page
+                HardwareClassesUnavailable = $"{ex.GetType().Name}: {ex.Message}";
+            }
         }
 
         /// <summary>
@@ -52,21 +83,23 @@ namespace Jellyfin.Plugin.GrpcFfmpeg
         /// the class per request. Both only take effect if the plugin and the hardware
         /// classes were enabled at startup; otherwise Jellyfin's own instance is used.
         /// </summary>
-        private static void RegisterHardwareClasses(IServiceCollection serviceCollection)
+        // Not inlined, so that type load errors in here surface as exceptions in the caller's try
+        [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
+        private static void RegisterHardwareClasses(IServiceCollection jellyfinServices, IServiceCollection registrations)
         {
             // Jellyfin registers the same instance for both interfaces
-            var original = serviceCollection.LastOrDefault(d => d.ServiceType == typeof(IServerConfigurationManager))?.ImplementationInstance
+            var original = jellyfinServices.LastOrDefault(d => d.ServiceType == typeof(IServerConfigurationManager))?.ImplementationInstance
                 as IServerConfigurationManager;
             if (original is null)
             {
                 return;
             }
 
-            serviceCollection.AddSingleton(services => new HardwareClassActivation(services, original));
-            serviceCollection.AddSingleton<IServerConfigurationManager>(services => services.GetRequiredService<HardwareClassActivation>().ConfigurationManager);
-            serviceCollection.AddSingleton<MediaBrowser.Common.Configuration.IConfigurationManager>(services => services.GetRequiredService<HardwareClassActivation>().ConfigurationManager);
-            serviceCollection.AddSingleton(CreateSessionClassSelector);
-            serviceCollection.AddSingleton<IStartupFilter>(services => services.GetRequiredService<HardwareClassActivation>().Active
+            registrations.AddSingleton(services => new HardwareClassActivation(services, original));
+            registrations.AddSingleton<IServerConfigurationManager>(services => services.GetRequiredService<HardwareClassActivation>().ConfigurationManager);
+            registrations.AddSingleton<MediaBrowser.Common.Configuration.IConfigurationManager>(services => services.GetRequiredService<HardwareClassActivation>().ConfigurationManager);
+            registrations.AddSingleton(CreateSessionClassSelector);
+            registrations.AddSingleton<IStartupFilter>(services => services.GetRequiredService<HardwareClassActivation>().Active
                 ? ActivatorUtilities.CreateInstance<HardwareClassStartupFilter>(services)
                 : new PassThroughStartupFilter());
         }
