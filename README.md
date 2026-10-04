@@ -102,6 +102,28 @@ folder in Jellyfin's `plugins` directory.
 
 All settings except the last apply to the next command, without a restart.
 
+### Experimental: hardware classes
+
+Jellyfin supports one hardware acceleration type, so all workers behind one address need the
+same kind of GPU. With **hardware classes** (off by default; turning it on or off needs a
+restart), one Jellyfin uses an Intel QSV pool and an NVIDIA NVENC pool at the same time, each
+behind its own address:
+
+- Each new playback session gets a class: the two classes take turns, or a fixed class is used.
+  The session keeps that class for seeks and later segments (remembered for 6 hours of
+  inactivity).
+- During that session's streaming requests, Jellyfin sees its transcoding settings with the
+  class's hardware acceleration type, decoding codecs, tone mapping and HEVC/AV1 encoding
+  settings. Jellyfin's saved settings are not changed.
+- The client sends each command to the pool its hardware arguments need (`CLASS_ADDRESSES`).
+  Everything else, such as startup checks, library scans, trickplay and image extraction, uses
+  Jellyfin's own settings and the worker above.
+
+Limitations: only QSV and NVENC (no VAAPI/AMD classes). Jellyfin's dashboard still shows its
+global settings. A session stays on its class even while that pool is down. The feature
+depends on Jellyfin reading the transcoding settings for each request, which is true for
+10.11 and 12.1 but is not a public API.
+
 ## How it works
 
 - On every start, the plugin unpacks the grpc-ffmpeg client it contains to

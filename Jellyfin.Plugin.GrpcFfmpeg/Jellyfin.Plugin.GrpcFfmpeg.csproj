@@ -26,6 +26,10 @@
     <EmbeddedResource Include="Web\config.html" />
   </ItemGroup>
 
+  <ItemGroup>
+    <InternalsVisibleTo Include="Jellyfin.Plugin.GrpcFfmpeg.Tests" />
+  </ItemGroup>
+
   <!-- Embed the grpc-ffmpeg client binaries (downloaded from the pinned release unless present) -->
   <Target Name="DownloadGrpcFfmpegClients" BeforeTargets="PrepareForBuild">
     <DownloadFile Condition="!Exists('$(GrpcFfmpegAssetsDir)grpc-ffmpeg-client-amd64')"

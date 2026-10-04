@@ -18,7 +18,7 @@ namespace Jellyfin.Plugin.GrpcFfmpeg
         public static readonly string[] ClientEnvironmentVariables =
         {
             "GRPC_FFMPEG_CONFIG", "GRPC_HOST", "GRPC_PORT", "AUTH_TOKEN", "USE_SSL", "CERTIFICATE_PATH",
-            "FALLBACK_DIR", "RETRIES", "CONNECT_TIMEOUT", "LOG_FILE",
+            "FALLBACK_DIR", "RETRIES", "CONNECT_TIMEOUT", "LOG_FILE", "CLASS_ADDRESSES",
         };
 
         private static readonly TimeSpan _commandTimeout = TimeSpan.FromSeconds(30);
@@ -77,6 +77,7 @@ namespace Jellyfin.Plugin.GrpcFfmpeg
                 await CheckDirectoryAsync("Temp directory (image extraction, trickplay)", () => _configurationManager.ApplicationPaths.TempDirectory).ConfigureAwait(false),
             };
             checks.AddRange(await CheckLibrariesAsync().ConfigureAwait(false));
+            checks.AddRange(await CheckHardwareClassesAsync().ConfigureAwait(false));
 
             return new TestResult(true, 0, version.Output, checks, warnings);
         }
@@ -219,11 +220,55 @@ namespace Jellyfin.Plugin.GrpcFfmpeg
             }
         }
 
-        private Task<CommandResult> RunClientAsync(string name, IEnumerable<string> arguments)
+        /// <summary>
+        /// Checks that the workers of each enabled hardware class answer (experimental).
+        /// </summary>
+        private async Task<List<CheckResult>> CheckHardwareClassesAsync()
+        {
+            var results = new List<CheckResult>();
+            var config = Plugin.Instance?.Configuration;
+            if (config is null || !config.EnableHardwareClasses)
+            {
+                return results;
+            }
+
+            foreach (var hardwareClass in config.HardwareClasses().Where(c => c.Enabled))
+            {
+                var name = $"Hardware class {hardwareClass.Name}";
+                if (hardwareClass.Address is null)
+                {
+                    results.Add(new CheckResult(name, string.Empty, false, "No valid host and port"));
+                    continue;
+                }
+
+                // -version has no hardware arguments, so it goes to GRPC_HOST: point that at the class
+                var result = await RunClientAsync(
+                    "ffmpeg",
+                    new[] { "-hide_banner", "-version" },
+                    new Dictionary<string, string>
+                    {
+                        ["GRPC_HOST"] = hardwareClass.GrpcHost.Trim(),
+                        ["GRPC_PORT"] = hardwareClass.GrpcPort.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                    }).ConfigureAwait(false);
+                results.Add(result.ExitCode == 0
+                    ? new CheckResult(name, hardwareClass.Address, true, result.Output.Split('\n')[0].Trim())
+                    : new CheckResult(name, hardwareClass.Address, false, LastLine(result.Error)));
+            }
+
+            return results;
+        }
+
+        private Task<CommandResult> RunClientAsync(string name, IEnumerable<string> arguments, Dictionary<string, string>? environment = null)
         {
             var path = Path.Combine(_deployDirectory, name + (OperatingSystem.IsWindows() ? ".exe" : string.Empty));
             // Test the workers themselves, not the fallback, and fail fast
-            return RunAsync(path, arguments, new Dictionary<string, string> { ["FALLBACK_DIR"] = string.Empty, ["RETRIES"] = "1" });
+            var settings = new Dictionary<string, string> { ["FALLBACK_DIR"] = string.Empty, ["RETRIES"] = "1" };
+            foreach (var (key, value) in environment ?? new Dictionary<string, string>())
+            {
+                settings[key] = value;
+            }
+
+            return RunAsync(path, arguments, settings);
         }
 
         private static async Task<CommandResult> RunAsync(string path, IEnumerable<string> arguments, Dictionary<string, string> environment)

@@ -5,7 +5,7 @@
 </head>
 <body>
     <div id="grpcFfmpegConfigPage" data-role="page" class="page type-interior pluginConfigurationPage"
-         data-require="emby-input,emby-button,emby-checkbox">
+         data-require="emby-input,emby-button,emby-checkbox,emby-select">
         <div data-role="content">
             <div class="content-primary">
                 <form class="grpcFfmpegConfigurationForm">
@@ -92,6 +92,133 @@
                     </div>
 
                     <div class="verticalSection">
+                        <h3 class="sectionTitle">Experimental: hardware classes</h3>
+                        <div class="checkboxContainer checkboxContainer-withDescription">
+                            <label>
+                                <input is="emby-checkbox" type="checkbox" id="enableHardwareClasses" />
+                                <span>Spread playback sessions over several kinds of GPU</span>
+                            </label>
+                            <div class="fieldDescription checkboxFieldDescription">
+                                A prototype. Each class is its own worker pool. A playback session keeps one class for its whole life,
+                                and the commands go to that class's workers. Library scans, trickplay, image extraction and Jellyfin's
+                                startup checks keep using Jellyfin's own transcoding settings and the worker above.
+                                Only Intel QSV and NVIDIA NVENC are supported, and Jellyfin's dashboard still shows its global settings.
+                                Turning this on or off takes effect after restarting Jellyfin.
+                            </div>
+                        </div>
+                        <div class="selectContainer">
+                            <select is="emby-select" id="defaultHardwareClass" label="Class for new playback sessions">
+                                <option value="alternate">Take turns between the enabled classes</option>
+                                <option value="intel">Intel QSV</option>
+                                <option value="nvidia">NVIDIA NVENC</option>
+                                <option value="">None (Jellyfin's transcoding settings)</option>
+                            </select>
+                        </div>
+                        <div class="verticalSection" style="margin-left: 1em;">
+                            <h4>Intel QSV</h4>
+                            <div class="checkboxContainer">
+                                <label>
+                                    <input is="emby-checkbox" type="checkbox" id="intelEnabled" />
+                                    <span>Enabled</span>
+                                </label>
+                            </div>
+                            <div class="inputContainer">
+                                <input type="text" id="intelGrpcHost" is="emby-input" label="Host" />
+                            </div>
+                            <div class="inputContainer">
+                                <input type="number" id="intelGrpcPort" is="emby-input" label="Port" min="1" max="65535" />
+                            </div>
+                            <div class="inputContainer">
+                                <input type="text" id="intelDevice" is="emby-input" label="QSV device" />
+                                <div class="fieldDescription">Render node on the workers, e.g. /dev/dri/renderD128. Empty keeps Jellyfin's setting.</div>
+                            </div>
+                            <div class="inputContainer">
+                                <input type="text" id="intelHardwareDecodingCodecs" is="emby-input" label="Hardware decoding codecs" />
+                                <div class="fieldDescription">Comma-separated, e.g. h264, hevc, mpeg2video, vc1, vp8, vp9, av1.</div>
+                            </div>
+                            <div class="checkboxContainer">
+                                <label>
+                                    <input is="emby-checkbox" type="checkbox" id="intelEnableDecodingColorDepth10Hevc" />
+                                    <span>10-bit HEVC decoding</span>
+                                </label>
+                            </div>
+                            <div class="checkboxContainer">
+                                <label>
+                                    <input is="emby-checkbox" type="checkbox" id="intelEnableDecodingColorDepth10Vp9" />
+                                    <span>10-bit VP9 decoding</span>
+                                </label>
+                            </div>
+                            <div class="checkboxContainer">
+                                <label>
+                                    <input is="emby-checkbox" type="checkbox" id="intelEnableTonemapping" />
+                                    <span>Tone mapping</span>
+                                </label>
+                            </div>
+                            <div class="checkboxContainer">
+                                <label>
+                                    <input is="emby-checkbox" type="checkbox" id="intelAllowHevcEncoding" />
+                                    <span>Allow HEVC encoding</span>
+                                </label>
+                            </div>
+                            <div class="checkboxContainer">
+                                <label>
+                                    <input is="emby-checkbox" type="checkbox" id="intelAllowAv1Encoding" />
+                                    <span>Allow AV1 encoding</span>
+                                </label>
+                            </div>
+                        </div>
+                        <div class="verticalSection" style="margin-left: 1em;">
+                            <h4>NVIDIA NVENC</h4>
+                            <div class="checkboxContainer">
+                                <label>
+                                    <input is="emby-checkbox" type="checkbox" id="nvidiaEnabled" />
+                                    <span>Enabled</span>
+                                </label>
+                            </div>
+                            <div class="inputContainer">
+                                <input type="text" id="nvidiaGrpcHost" is="emby-input" label="Host" />
+                            </div>
+                            <div class="inputContainer">
+                                <input type="number" id="nvidiaGrpcPort" is="emby-input" label="Port" min="1" max="65535" />
+                            </div>
+                            <div class="inputContainer">
+                                <input type="text" id="nvidiaHardwareDecodingCodecs" is="emby-input" label="Hardware decoding codecs" />
+                                <div class="fieldDescription">Comma-separated, e.g. h264, hevc, mpeg2video, vc1, vp8, vp9, av1.</div>
+                            </div>
+                            <div class="checkboxContainer">
+                                <label>
+                                    <input is="emby-checkbox" type="checkbox" id="nvidiaEnableDecodingColorDepth10Hevc" />
+                                    <span>10-bit HEVC decoding</span>
+                                </label>
+                            </div>
+                            <div class="checkboxContainer">
+                                <label>
+                                    <input is="emby-checkbox" type="checkbox" id="nvidiaEnableDecodingColorDepth10Vp9" />
+                                    <span>10-bit VP9 decoding</span>
+                                </label>
+                            </div>
+                            <div class="checkboxContainer">
+                                <label>
+                                    <input is="emby-checkbox" type="checkbox" id="nvidiaEnableTonemapping" />
+                                    <span>Tone mapping</span>
+                                </label>
+                            </div>
+                            <div class="checkboxContainer">
+                                <label>
+                                    <input is="emby-checkbox" type="checkbox" id="nvidiaAllowHevcEncoding" />
+                                    <span>Allow HEVC encoding</span>
+                                </label>
+                            </div>
+                            <div class="checkboxContainer">
+                                <label>
+                                    <input is="emby-checkbox" type="checkbox" id="nvidiaAllowAv1Encoding" />
+                                    <span>Allow AV1 encoding</span>
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="verticalSection">
                         <h3 class="sectionTitle">Activation</h3>
                         <div class="checkboxContainer checkboxContainer-withDescription">
                             <label>
@@ -141,7 +268,10 @@
                             text = 'Inactive: Jellyfin uses ' + escapeHtml(get(status, 'ActiveFfmpegPath') || 'no ffmpeg') + '.';
                         }
                         if (get(status, 'RestartRequired')) {
-                            text += ' <strong>Restart Jellyfin to apply the activation setting.</strong>';
+                            text += ' <strong>Restart Jellyfin to apply the activation or hardware class setting.</strong>';
+                        }
+                        if (get(status, 'HardwareClassesActive')) {
+                            text += '<br/>Hardware classes (experimental): ' + escapeHtml(get(status, 'ClassAddresses') || 'no class enabled');
                         }
                         text += '<br/>Client directory: ' + escapeHtml(get(status, 'DeployDirectory'));
                         const fallback = get(status, 'Fallback');
@@ -176,6 +306,10 @@
                         $('#fallbackDirectory').value = config.FallbackDirectory || '';
                         $('#retries').value = config.Retries || 2;
                         $('#connectTimeout').value = config.ConnectTimeout || 5;
+                        $('#enableHardwareClasses').checked = config.EnableHardwareClasses;
+                        $('#defaultHardwareClass').value = config.DefaultHardwareClass == null ? 'alternate' : config.DefaultHardwareClass;
+                        loadHardwareClass('intel', config.IntelClass || {});
+                        loadHardwareClass('nvidia', config.NvidiaClass || {});
                         return loadStatus();
                     }).finally(() => Dashboard.hideLoadingMsg());
                 }
@@ -192,8 +326,43 @@
                         config.FallbackDirectory = $('#fallbackDirectory').value.trim();
                         config.Retries = parseInt($('#retries').value, 10) || 2;
                         config.ConnectTimeout = parseInt($('#connectTimeout').value, 10) || 5;
+                        config.EnableHardwareClasses = $('#enableHardwareClasses').checked;
+                        config.DefaultHardwareClass = $('#defaultHardwareClass').value;
+                        config.IntelClass = saveHardwareClass('intel', config.IntelClass || {});
+                        config.NvidiaClass = saveHardwareClass('nvidia', config.NvidiaClass || {});
                         return ApiClient.updatePluginConfiguration(pluginId, config);
                     });
+                }
+
+                const hardwareClassFlags = ['Enabled', 'EnableDecodingColorDepth10Hevc', 'EnableDecodingColorDepth10Vp9', 'EnableTonemapping', 'AllowHevcEncoding', 'AllowAv1Encoding'];
+
+                function loadHardwareClass(name, settings) {
+                    for (const flag of hardwareClassFlags) {
+                        $('#' + name + flag).checked = !!settings[flag];
+                    }
+                    $('#' + name + 'GrpcHost').value = settings.GrpcHost || '';
+                    $('#' + name + 'GrpcPort').value = settings.GrpcPort || 50051;
+                    $('#' + name + 'HardwareDecodingCodecs').value = (settings.HardwareDecodingCodecs || []).join(', ');
+                    const device = $('#' + name + 'Device');
+                    if (device) {
+                        device.value = settings.Device || '';
+                    }
+                }
+
+                function saveHardwareClass(name, settings) {
+                    settings.Name = name;
+                    for (const flag of hardwareClassFlags) {
+                        settings[flag] = $('#' + name + flag).checked;
+                    }
+                    settings.GrpcHost = $('#' + name + 'GrpcHost').value.trim();
+                    settings.GrpcPort = parseInt($('#' + name + 'GrpcPort').value, 10) || 50051;
+                    settings.HardwareDecodingCodecs = $('#' + name + 'HardwareDecodingCodecs').value
+                        .split(',').map(codec => codec.trim().toLowerCase()).filter(codec => codec);
+                    const device = $('#' + name + 'Device');
+                    if (device) {
+                        settings.Device = device.value.trim();
+                    }
+                    return settings;
                 }
 
                 // Console: fetch new lines every 2 seconds while the page is shown
@@ -217,7 +386,7 @@
                         // Color by the message only: "run:" lines show the command, which
                         // may contain words like "error" (e.g. "-v error")
                         const message = text.replace(/^\S+ \S+ \[\d+\] \S+ /, '');
-                        const match = message.startsWith('run:') ? null : consoleColors.find(([pattern]) => pattern.test(message));
+                        const match = /^run( \[[^\]]*\])?:/.test(message) ? null : consoleColors.find(([pattern]) => pattern.test(message));
                         if (match) {
                             span.style.color = match[1];
                         }

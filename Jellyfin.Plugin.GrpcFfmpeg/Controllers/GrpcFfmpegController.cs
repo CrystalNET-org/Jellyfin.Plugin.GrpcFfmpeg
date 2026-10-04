@@ -49,6 +49,7 @@ namespace Jellyfin.Plugin.GrpcFfmpeg.Controllers
 
             var clientPath = Relay.FfmpegPath(plugin.DeployDirectory);
             var active = string.Equals(_mediaEncoder.EncoderPath, clientPath, StringComparison.Ordinal);
+            var config = plugin.Configuration;
             return new
             {
                 plugin.DeployDirectory,
@@ -58,7 +59,10 @@ namespace Jellyfin.Plugin.GrpcFfmpeg.Controllers
                 plugin.Configuration.Enabled,
                 ActiveFfmpegPath = _mediaEncoder.EncoderPath,
                 Active = active,
-                RestartRequired = plugin.Configuration.Enabled != active,
+                RestartRequired = config.Enabled != active
+                    || (config.Enabled && config.EnableHardwareClasses) != HardwareClasses.HardwareClassContext.Active,
+                HardwareClassesActive = HardwareClasses.HardwareClassContext.Active,
+                ClassAddresses = Relay.ClassAddresses(config),
                 plugin.FallbackDirectory,
                 OverridingEnvironmentVariables = SetupCheck.OverridingEnvironmentVariables(),
                 Fallback = ActivityConsole.ActiveFallback(),

@@ -18,9 +18,11 @@ Jellyfin.Plugin.GrpcFfmpeg/
 │   ├── PluginServiceRegistrator.cs  # makes Jellyfin's MediaEncoder use the client
 │   ├── Relay.cs                     # unpacks the client, writes grpc-ffmpeg.conf
 │   ├── ActivityConsole.cs           # reads the clients' activity log for the console
+│   ├── HardwareClasses/             # experimental: per-session hardware classes
 │   ├── Controllers/                 # API for the settings page (status, console, test)
 │   ├── Configuration/               # plugin settings
 │   └── Web/config.html              # settings page
+├── Jellyfin.Plugin.GrpcFfmpeg.Tests/  # unit tests
 ├── images/                          # catalog image and README screenshots
 ├── manifest.json                    # plugin repository file for Jellyfin
 ├── scripts/
@@ -39,6 +41,12 @@ dotnet build -c Release Jellyfin.Plugin.GrpcFfmpeg/Jellyfin.Plugin.GrpcFfmpeg.cs
 ```
 
 The output is `Jellyfin.Plugin.GrpcFfmpeg/bin/Release/net9.0/Jellyfin.Plugin.GrpcFfmpeg.dll`.
+
+Unit tests:
+
+```bash
+dotnet test Jellyfin.Plugin.GrpcFfmpeg.Tests
+```
 Copy it into a folder in Jellyfin's `plugins` directory and restart Jellyfin to try it.
 
 The plugin builds against the Jellyfin 10.11 packages, so one build runs on 10.11 and 12.x.

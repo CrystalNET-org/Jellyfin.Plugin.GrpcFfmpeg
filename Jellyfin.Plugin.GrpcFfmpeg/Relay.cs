@@ -234,6 +234,22 @@ namespace Jellyfin.Plugin.GrpcFfmpeg
         }
 
         /// <summary>
+        /// Gets the client's CLASS_ADDRESSES ("intel=host:port;nvidia=host:port"), or null
+        /// if hardware classes are off. The client sends each command to the workers of the
+        /// class its hardware arguments need, and everything else to GRPC_HOST.
+        /// </summary>
+        public static string? ClassAddresses(PluginConfiguration config)
+        {
+            if (!config.EnableHardwareClasses)
+            {
+                return null;
+            }
+
+            var entries = config.HardwareClasses().Where(c => c.Address is not null).Select(c => c.Name + "=" + c.Address).ToList();
+            return entries.Count == 0 ? null : string.Join(';', entries);
+        }
+
+        /// <summary>
         /// Writes the client's config file from the plugin settings.
         /// </summary>
         private static void WriteClientConfig(string directory, PluginConfiguration config, string? fallbackDirectory, ILogger logger)
@@ -249,6 +265,7 @@ namespace Jellyfin.Plugin.GrpcFfmpeg
                 ("CONNECT_TIMEOUT", Math.Max(1, config.ConnectTimeout).ToString(System.Globalization.CultureInfo.InvariantCulture)),
                 ("FALLBACK_DIR", fallbackDirectory),
                 ("LOG_FILE", ActivityConsole.LogTarget(directory)),
+                ("CLASS_ADDRESSES", ClassAddresses(config)),
             };
 
             var text = new StringBuilder("# Written by the Jellyfin gRPC-ffmpeg plugin; changes here are overwritten.\n");

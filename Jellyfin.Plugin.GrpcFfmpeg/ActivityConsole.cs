@@ -99,6 +99,19 @@ namespace Jellyfin.Plugin.GrpcFfmpeg
             }
         }
 
+        /// <summary>
+        /// Adds a line of Jellyfin's own (e.g. a session's hardware class), formatted like the clients' lines.
+        /// </summary>
+        public static void AddServerLine(string message)
+        {
+            Add(string.Format(
+                System.Globalization.CultureInfo.InvariantCulture,
+                "{0:yyyy-MM-dd HH:mm:ss} [{1}] jellyfin {2}",
+                DateTime.UtcNow,
+                Environment.ProcessId,
+                message));
+        }
+
         private static void Add(string text)
         {
             lock (_lock)
