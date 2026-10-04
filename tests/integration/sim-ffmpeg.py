@@ -7,6 +7,10 @@ equivalent software transcode instead: same input, start time, segment numbers a
 output files, at real-time speed, so Jellyfin gets real segments and its transcode
 jobs stay alive like on real hardware.
 
+The plugin's GPU test encodes (a few frames from lavfi with an _nvenc or _qsv encoder)
+succeed for the codecs in SIM_GPU_ENCODERS, by default h264 and hevc on the intel worker
+and h264, hevc and av1 on the nvidia worker, and fail like on a GPU without them otherwise.
+
 REAL_FFMPEG is the ffmpeg to run, possibly with a prefix (e.g. "chroot /root ffmpeg");
 default /usr/lib/jellyfin-ffmpeg/ffmpeg.
 """
@@ -32,6 +36,16 @@ real = shlex.split(os.environ.get("REAL_FFMPEG", "/usr/lib/jellyfin-ffmpeg/ffmpe
 def option(name):
     return args[args.index(name) + 1] if name in args and args.index(name) + 1 < len(args) else None
 
+
+GPU_ENCODERS = {"intel": "h264,hevc", "nvidia": "h264,hevc,av1"}
+encoder = option("-c:v") or ""
+
+if "-init_hw_device" in args and "lavfi" in args and encoder.endswith(("_nvenc", "_qsv")):
+    supported = os.environ.get("SIM_GPU_ENCODERS", GPU_ENCODERS.get(os.environ.get("WORKER_NAME", ""), ""))
+    if encoder.rsplit("_", 1)[0] in supported.split(","):
+        sys.exit(0)
+    print(f"[{encoder} @ 0x0] simulated GPU without {encoder}: unsupported device", file=sys.stderr)
+    sys.exit(1)
 
 if "-init_hw_device" in args and "-hls_segment_filename" in args:
     # Progress output on stderr as from the real command: Jellyfin follows it (10.11 waits

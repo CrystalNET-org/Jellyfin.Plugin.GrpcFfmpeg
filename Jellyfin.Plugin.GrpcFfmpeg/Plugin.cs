@@ -1,4 +1,5 @@
 using Jellyfin.Plugin.GrpcFfmpeg.Configuration;
+using Jellyfin.Plugin.GrpcFfmpeg.HardwareClasses;
 using MediaBrowser.Common.Configuration;
 using MediaBrowser.Common.Plugins;
 using MediaBrowser.Controller.Configuration;
@@ -18,6 +19,7 @@ namespace Jellyfin.Plugin.GrpcFfmpeg
         private readonly IConfiguration _startupConfig;
         private readonly IServerConfigurationManager _configurationManager;
         private readonly ILogger<Plugin> _logger;
+        private readonly SemaphoreSlim _detection = new(1, 1);
 
         public Plugin(
             IApplicationPaths applicationPaths,
@@ -40,6 +42,9 @@ namespace Jellyfin.Plugin.GrpcFfmpeg
             {
                 _logger.LogError("gRPC-ffmpeg: hardware classes are unavailable with this Jellyfin version, all sessions use Jellyfin's settings: {Reason}", reason);
             }
+
+            // Once the server is up, rather than delaying its start
+            DetectClassEncoders(TimeSpan.FromSeconds(30));
         }
 
         public static Plugin? Instance { get; private set; }
@@ -77,6 +82,67 @@ namespace Jellyfin.Plugin.GrpcFfmpeg
             base.UpdateConfiguration(configuration);
             // Worker settings apply to the next command right away; Enabled needs a restart
             Prepare();
+            DetectClassEncoders(TimeSpan.Zero);
+        }
+
+        /// <summary>
+        /// Checks in the background which codecs the enabled hardware classes' GPUs encode,
+        /// and saves that as their HEVC and AV1 encoding settings. Results for workers that
+        /// cannot be reached, or whose GPU does not work, leave the settings as they are.
+        /// </summary>
+        private void DetectClassEncoders(TimeSpan delay)
+        {
+            if (!Configuration.EnableHardwareClasses)
+            {
+                return;
+            }
+
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    await Task.Delay(delay).ConfigureAwait(false);
+                    // One detection at a time; a later one sees the newer settings
+                    await _detection.WaitAsync().ConfigureAwait(false);
+                    try
+                    {
+                        foreach (var hardwareClass in Configuration.HardwareClasses().Where(c => c.Address is not null).ToList())
+                        {
+                            var environment = SetupCheck.ConnectionEnvironment(Configuration);
+                            foreach (var (key, value) in SetupCheck.ClassEnvironment(hardwareClass))
+                            {
+                                environment[key] = value;
+                            }
+
+                            var result = await ClassProbe.RunAsync(
+                                hardwareClass,
+                                (name, arguments) => SetupCheck.RunClientAsync(DeployDirectory, name, arguments, environment)).ConfigureAwait(false);
+                            if (!result.GpuUsable)
+                            {
+                                _logger.LogWarning("gRPC-ffmpeg: could not check hardware class {Class} ({Address}): {Error}", result.Class, result.Address, result.Error);
+                                continue;
+                            }
+
+                            _logger.LogInformation("gRPC-ffmpeg: hardware class {Class} ({Address}) encodes {Codecs}", result.Class, result.Address, string.Join(", ", result.Encoders));
+                            // The settings may have been saved meanwhile: apply to the current ones
+                            var current = Configuration;
+                            if (ClassProbe.Apply(current, result))
+                            {
+                                // Not UpdateConfiguration, which would start another detection
+                                SaveConfiguration(current);
+                            }
+                        }
+                    }
+                    finally
+                    {
+                        _detection.Release();
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "gRPC-ffmpeg: checking the hardware classes' encoders failed");
+                }
+            });
         }
 
         public IEnumerable<PluginPageInfo> GetPages()
