@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """ffmpeg for the integration test's workers, which have no GPU.
 
-Logs every command (one JSON line per command in $SIM_LOG_DIR/$WORKER_NAME.log) and
-runs it. Hardware HLS transcodes cannot run without the GPU, so they run as an
+Logs every command received from Jellyfin (one JSON line per command in
+$SIM_LOG_DIR/$WORKER_NAME.log) and runs it. Hardware HLS transcodes cannot run without the GPU, so they run as an
 equivalent software transcode instead: same input, start time, segment numbers and
 output files, at real-time speed, so Jellyfin gets real segments and its transcode
 jobs stay alive like on real hardware.
@@ -17,7 +17,10 @@ import sys
 
 args = sys.argv[1:]
 log_dir = os.environ.get("SIM_LOG_DIR")
-if log_dir:
+# The worker's own self-test (it converts its sample to grpc-ffmpeg-healthcheck-*.mp4,
+# right at startup) is not a command from Jellyfin
+self_test = any(os.path.basename(a).startswith("grpc-ffmpeg-healthcheck-") for a in args)
+if log_dir and not self_test:
     record = {"worker": os.environ.get("WORKER_NAME", "?"), "args": args,
               "cuda_visible_devices": os.environ.get("CUDA_VISIBLE_DEVICES")}
     with open(os.path.join(log_dir, os.environ.get("WORKER_NAME", "worker") + ".log"), "a") as log:
