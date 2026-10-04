@@ -63,6 +63,10 @@ image extraction and a transcode:
   - Jellyfin's cache directory, including the transcode directory,
   - Jellyfin's temp directory, `/tmp/jellyfin` by default, where image extraction and trickplay
     write their output. Mount a shared volume there on Jellyfin and on the workers.
+
+  Mount them the same way everywhere: the same protocol and the same mount options. File names
+  must look identical on Jellyfin and on the workers, as Jellyfin sends its own paths (see
+  *Troubleshooting* for SMB/CIFS shares).
 - **One kind of GPU:** all workers need the same kind of GPU (e.g. all Intel QSV), matching
   the hardware acceleration set in Jellyfin.
 
@@ -219,6 +223,19 @@ rejected call.
 - **The status says a restart is required:** the activation changed since Jellyfin started.
 - **Commands fail with "No such file or directory":** a path is not shared; run the test to
   see which.
+- **Only some files fail with "No such file or directory", with paths like
+  `/media/IG8JNE~S/I1RW5M~2.MP4`:** these are mangled 8.3 short names. A Samba (SMB/CIFS) share
+  invents them for names with characters Windows does not allow (`: ? * " < > | \`, a trailing
+  dot or space), which is common for e.g. anime releases. Jellyfin's mount shows the mangled
+  names while the workers' mount shows the real ones (or the other way around), because the
+  two mount the share differently. The test does not catch this, as it probes only one file
+  per library. Compare `ls` of the directory in both, and mount the share identically:
+  - NFS on both, if the server offers it (no name mangling at all), or
+  - CIFS on both with the same options, including `mapposix` (or `mapchars`), which maps those
+    characters instead of mangling the names.
+
+  Then rescan the library, so that Jellyfin replaces the mangled paths it stored. Renaming the
+  files to drop those characters works too.
 - **The console shows `exit 1` for `-init_hw_device` commands at startup:** that is how
   Jellyfin checks VAAPI and Vulkan. These commands have no input or output, so ffmpeg always
   exits with 1. Jellyfin reads the driver details from their error output.
