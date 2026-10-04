@@ -42,7 +42,7 @@ steps:
       - ROOT=$${CI_WORKSPACE}/.integration PLUGIN_DLL=Jellyfin.Plugin.GrpcFfmpeg/bin/Release/net9.0/Jellyfin.Plugin.GrpcFfmpeg.dll sh tests/integration/prepare.sh
 
   - name: worker-default
-    image: &worker ghcr.io/crystalnet-org/ffmpeg-worker:8.1.3-7.10
+    image: &worker ghcr.io/crystalnet-org/ffmpeg-worker:8.1.3-8.0
     backend_options:
       kubernetes:
         resources:
