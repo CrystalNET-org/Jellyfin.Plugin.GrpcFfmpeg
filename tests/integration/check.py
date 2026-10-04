@@ -5,7 +5,9 @@ Expects Jellyfin prepared by prepare.sh and three workers whose ffmpeg is
 sim-ffmpeg.py (default, intel, nvidia). Plays sessions through Jellyfin's API and
 checks, from the commands the workers received and the plugin's status, that:
 
-- Jellyfin's startup checks and library scan go to the default worker only,
+- Jellyfin's startup checks and library scan go to the default worker only, and the
+  class workers only get the plugin's checks of their GPU encoders,
+- the plugin detects each class's decoders and encoders and corrects the saved settings,
 - the "auto" policy picks nvidia for 10-bit AV1 (only nvidia decodes AV1), the less
   loaded class next, and the class that encodes the client's preferred codec on a tie,
 - each session's transcode carries its class's hardware arguments and reaches its
@@ -26,6 +28,13 @@ import urllib.request
 BASE = os.environ.get("JELLYFIN_URL", "http://jellyfin:8096").rstrip("/")
 LOG_DIR = os.environ["SIM_LOG_DIR"]
 AUTH = 'MediaBrowser Client="integration", Device="check", DeviceId="integration-check", Version="1.0"'
+PLUGIN_ID = "5FCE29C6-1366-41CD-9B05-6447A531B590"
+# What sim-ffmpeg.py's GPUs encode
+EXPECTED_ENCODERS = {"intel": ["h264", "hevc"], "nvidia": ["h264", "hevc", "av1"]}
+EXPECTED_DECODERS = {"intel": ["h264", "hevc", "hevc10", "vp9", "vp910"],
+                     "nvidia": ["h264", "hevc", "hevc10", "mpeg2video", "vp8", "vp9", "vp910", "av1"]}
+# The saved settings that follow from them; nvidia keeps VC-1, which cannot be tested
+EXPECTED_CODECS = {"intel": ["h264", "hevc", "vp9"], "nvidia": ["h264", "hevc", "mpeg2video", "vc1", "vp8", "vp9", "av1"]}
 WORKERS = ("default", "intel", "nvidia")
 token = None
 failures = []
@@ -43,6 +52,11 @@ def call(method, path, body=None, raw=False, timeout=60):
         return e.code, e.read()[:500]
     except Exception as e:  # connection refused while starting, timeouts
         return -1, str(e)
+
+
+def get(obj, name):
+    """Status fields as the plugin returns them (PascalCase), or camelCase."""
+    return obj.get(name, obj.get(name[0].lower() + name[1:])) if isinstance(obj, dict) else None
 
 
 def check(condition, message):
@@ -66,6 +80,11 @@ def counts():
 
 def new_commands(before):
     return {w: commands(w)[before[w]:] for w in WORKERS}
+
+
+def is_gpu_check(args):
+    """The plugin's check of a class's GPU: its ffmpeg version, or a test encode from lavfi."""
+    return args in (["-hide_banner", "-version"], ["-version"]) or "lavfi" in args or "pipe:0" in args
 
 
 def has_arg(args, prefix):
@@ -158,10 +177,37 @@ def main():
     check("intel=" in (plugin.get("ClassAddresses") or "") and "nvidia=" in (plugin.get("ClassAddresses") or ""),
           f"CLASS_ADDRESSES written ({plugin.get('ClassAddresses')})")
 
+    print("Encoder detection", flush=True)
+
+    def detected():
+        status, plugin = call("GET", "/GrpcFfmpeg/Status")
+        results = {get(c, "Name"): get(c, "Check") for c in (plugin.get("ClassChecks") or [])} if status == 200 else {}
+        status, config = call("GET", f"/Plugins/{PLUGIN_ID}/Configuration")
+        saved = status == 200 and all(config[key]["HardwareDecodingCodecs"] == EXPECTED_CODECS[name]
+                                      for name, key in (("intel", "IntelClass"), ("nvidia", "NvidiaClass")))
+        done = all(results.get(name) and get(results[name], "DecodingTested") for name in EXPECTED_ENCODERS)
+        return (results, config) if done and saved else None
+
+    results, config = wait_for("the plugin's encoder and decoder detection (30 s after startup)", detected, timeout=300)
+    for name, expected in EXPECTED_ENCODERS.items():
+        found = get(results[name], "Encoders")
+        check(found == expected, f"{name}: detected encoders {found}")
+        found = get(results[name], "Decoders")
+        check(found == EXPECTED_DECODERS[name], f"{name}: detected decoders {found}")
+    check(config["IntelClass"]["AllowAv1Encoding"] is False and config["NvidiaClass"]["AllowAv1Encoding"] is True,
+          "saved AV1 encoding corrected: off for intel, on for nvidia")
+    for name, key in (("intel", "IntelClass"), ("nvidia", "NvidiaClass")):
+        saved = config[key]
+        check(saved["HardwareDecodingCodecs"] == EXPECTED_CODECS[name]
+              and saved["EnableDecodingColorDepth10Hevc"] is True and saved["EnableDecodingColorDepth10Vp9"] is True,
+              f"{name}: saved decoding corrected ({saved['HardwareDecodingCodecs']}, 10-bit HEVC/VP9 on)")
+
     print("Startup and library scan", flush=True)
     startup = counts()
     check(startup["default"] >= 5, f"startup checks ran on the default worker ({startup['default']} commands)")
-    check(startup["intel"] == 0 and startup["nvidia"] == 0, f"no startup command on the class workers ({startup})")
+    other = {w: [a for a in commands(w) if not is_gpu_check(a)] for w in ("intel", "nvidia")}
+    check(not other["intel"] and not other["nvidia"],
+          f"the class workers only got the GPU checks ({ {w: len(a) for w, a in other.items()} } other commands)")
     check(not any(has_arg(a, "-init_hw_device") for a in commands("default")), "no hardware command on the default worker")
 
     print("Auto policy", flush=True)

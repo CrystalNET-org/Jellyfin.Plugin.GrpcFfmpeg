@@ -36,14 +36,19 @@ cat > "$HOST_ROOT/config/plugins/configurations/Jellyfin.Plugin.GrpcFfmpeg.xml" 
     <Enabled>true</Enabled>
     <GrpcHost>${WORKER_INTEL_HOST:-worker-intel}</GrpcHost>
     <GrpcPort>${WORKER_INTEL_PORT:-50051}</GrpcPort>
-    <HardwareDecodingCodecs><string>h264</string><string>hevc</string><string>vp9</string></HardwareDecodingCodecs>
+    <!-- Wrong on purpose: the plugin detects the decoders and encoders (sim-ffmpeg.py) -->
+    <HardwareDecodingCodecs><string>h264</string><string>hevc</string><string>vp9</string><string>av1</string></HardwareDecodingCodecs>
+    <EnableDecodingColorDepth10Vp9>false</EnableDecodingColorDepth10Vp9>
+    <AllowAv1Encoding>true</AllowAv1Encoding>
   </IntelClass>
   <NvidiaClass>
     <Name>nvidia</Name>
     <Enabled>true</Enabled>
     <GrpcHost>${WORKER_NVIDIA_HOST:-worker-nvidia}</GrpcHost>
     <GrpcPort>${WORKER_NVIDIA_PORT:-50051}</GrpcPort>
-    <AllowAv1Encoding>true</AllowAv1Encoding>
+    <!-- VC-1 cannot be tested and must be kept -->
+    <HardwareDecodingCodecs><string>h264</string><string>vc1</string></HardwareDecodingCodecs>
+    <AllowAv1Encoding>false</AllowAv1Encoding>
   </NvidiaClass>
 </PluginConfiguration>
 XML

@@ -74,9 +74,10 @@ image extraction and a transcode:
    ```
 2. Install **gRPC-ffmpeg** from the catalog and restart Jellyfin.
 3. Open **gRPC-ffmpeg** in the dashboard sidebar, below *Plugins*. Enter the worker's host,
-   port and token (the worker's `VALID_TOKEN`), then click **Save and test connection**. The
-   test also has the workers read and write test files in Jellyfin's transcode and temp
-   directories and probe a file of each library, and shows what is not shared yet.
+   port and token (the worker's `VALID_TOKEN`), then click **Test**, which tests the values as
+   entered, before saving them. The test also has the workers read and write test files in
+   Jellyfin's transcode and temp directories and probe a file of each library, and shows what
+   is not shared yet.
 4. Tick **Use gRPC workers for ffmpeg**, save, and restart Jellyfin.
 
 After the restart, the status on the settings page shows that Jellyfin runs ffmpeg through
@@ -107,7 +108,8 @@ All settings except the last apply to the next command, without a restart.
 Jellyfin supports one hardware acceleration type, so all workers behind one address need the
 same kind of GPU. With **hardware classes** (off by default; turning it on or off needs a
 restart), one Jellyfin uses an Intel QSV pool and an NVIDIA NVENC pool at the same time, each
-behind its own address:
+behind its own address. Ticking it on the settings page shows the class settings, with a tab
+each for the default workers, Intel QSV and NVIDIA NVENC:
 
 - Each new playback session gets a class when Jellyfin first reads its transcoding settings
   (after authentication). With the default **Automatic** policy:
@@ -131,8 +133,23 @@ behind its own address:
   Everything else, such as startup checks, library scans, trickplay and image extraction, uses
   Jellyfin's own settings and the worker above. Like the switch itself, the addresses only
   change with a restart.
-- **Save and test connection** also checks each enabled class's workers: that they answer,
-  share the transcode directory and can read the media.
+- **Decoders and encoders are detected**: on startup and whenever the settings are saved, each
+  enabled class's workers
+  - encode a few test frames with H.264, HEVC and AV1 on their GPU, set up like Jellyfin's own
+    commands (the ffmpeg build lists every encoder, so only a real encode tells), and
+  - make short test clips in software (H.264, HEVC and VP9 in 8 and 10 bit, MPEG-2, VP8, AV1)
+    and decode them with the GPU's decoder (`*_cuvid`, `*_qsv`), which fails instead of
+    falling back to software.
+
+  What works becomes the class's encoding, hardware decoding and 10-bit decoding settings.
+  VC-1 can't be tested (no software encoder) and is set by hand. Workers that can't be
+  reached, or whose GPU doesn't work, leave the settings as they were, and so does a decoding
+  test that can't even decode H.264.
+- Tone mapping is on by default for each class, as the class's settings replace Jellyfin's.
+- Each class's tab shows its workers' last check and, while active, its sessions and routed
+  commands. Its **Test** button checks the workers as entered: that they answer, which codecs
+  their GPU decodes and encodes, and that they share the transcode directory and can read the
+  media.
 
 Limitations: only QSV and NVENC (no VAAPI/AMD classes). Jellyfin's dashboard still shows its
 global settings. Unreachable workers are only noticed through failed commands (with the

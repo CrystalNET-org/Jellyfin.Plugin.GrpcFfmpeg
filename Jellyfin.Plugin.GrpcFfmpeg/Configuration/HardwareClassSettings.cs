@@ -52,7 +52,11 @@ namespace Jellyfin.Plugin.GrpcFfmpeg.Configuration
 
         public bool EnableDecodingColorDepth10Vp9 { get; set; } = true;
 
-        public bool EnableTonemapping { get; set; }
+        /// <summary>
+        /// Gets or sets a value indicating whether HDR is tone mapped to SDR. On by default:
+        /// the class's settings replace Jellyfin's, and without it HDR transcodes look washed out.
+        /// </summary>
+        public bool EnableTonemapping { get; set; } = true;
 
         public bool AllowHevcEncoding { get; set; }
 

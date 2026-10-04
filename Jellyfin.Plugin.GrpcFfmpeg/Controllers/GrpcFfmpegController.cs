@@ -5,6 +5,7 @@ using MediaBrowser.Controller.MediaEncoding;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.ModelBinding;
 using Microsoft.Extensions.Configuration;
 
 namespace Jellyfin.Plugin.GrpcFfmpeg.Controllers
@@ -69,6 +70,7 @@ namespace Jellyfin.Plugin.GrpcFfmpeg.Controllers
                 HardwareClassesUnavailable = PluginServiceRegistrator.HardwareClassesUnavailable,
                 ClassAddresses = Relay.ClassAddresses(config, HardwareClasses.HardwareClassContext.Active),
                 HardwareClasses = HardwareClassStatus(config),
+                ClassChecks = config.HardwareClasses().Select(c => new { c.Name, Check = HardwareClasses.ClassProbe.Latest(c.Name) }),
                 plugin.FallbackDirectory,
                 OverridingEnvironmentVariables = SetupCheck.OverridingEnvironmentVariables(),
                 Fallback = ActivityConsole.ActiveFallback(),
@@ -159,12 +161,20 @@ namespace Jellyfin.Plugin.GrpcFfmpeg.Controllers
         }
 
         /// <summary>
-        /// Tests the setup with the saved settings, without the local fallback: the connection,
-        /// the ffmpeg version, and whether the workers share Jellyfin's directories.
+        /// Tests workers with the given settings (e.g. the settings page's, unsaved), or the
+        /// saved ones, without the local fallback. The default workers: the connection, the
+        /// ffmpeg version and whether they share Jellyfin's directories. A hardware class's
+        /// workers: the connection, which codecs their GPU encodes, the transcode directory and
+        /// the media.
         /// </summary>
+        /// <param name="target">"default", or a hardware class ("intel", "nvidia").</param>
+        /// <param name="settings">The settings to test; the saved ones if omitted.</param>
         [HttpPost("Test")]
         [ProducesResponseType(StatusCodes.Status200OK)]
-        public async Task<ActionResult<object>> Test()
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        public async Task<ActionResult<object>> Test(
+            [FromQuery] string? target,
+            [FromBody(EmptyBodyBehavior = EmptyBodyBehavior.Allow)] Configuration.PluginConfiguration? settings)
         {
             var plugin = Plugin.Instance;
             if (plugin?.Prepare() is null)
@@ -172,8 +182,20 @@ namespace Jellyfin.Plugin.GrpcFfmpeg.Controllers
                 return Problem("The client could not be deployed, see the server log.");
             }
 
-            var check = new SetupCheck(plugin.DeployDirectory, _configurationManager, _libraryManager, _startupConfig);
-            return await check.RunAsync().ConfigureAwait(false);
+            var config = settings ?? plugin.Configuration;
+            var check = new SetupCheck(plugin.DeployDirectory, config, _configurationManager, _libraryManager, _startupConfig);
+            if (string.IsNullOrEmpty(target) || target == "default")
+            {
+                return await check.RunAsync().ConfigureAwait(false);
+            }
+
+            var hardwareClass = config.HardwareClasses().FirstOrDefault(c => c.Name == target);
+            if (hardwareClass is null)
+            {
+                return BadRequest("Unknown hardware class " + target);
+            }
+
+            return await check.RunClassAsync(hardwareClass).ConfigureAwait(false);
         }
     }
 }
