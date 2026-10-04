@@ -109,9 +109,19 @@ same kind of GPU. With **hardware classes** (off by default; turning it on or of
 restart), one Jellyfin uses an Intel QSV pool and an NVIDIA NVENC pool at the same time, each
 behind its own address:
 
-- Each new playback session gets a class: the two classes take turns, or a fixed class is used.
-  The session keeps that class for seeks and later segments (remembered for 6 hours of
-  inactivity).
+- Each new playback session gets a class when Jellyfin first reads its transcoding settings
+  (after authentication). With the default **Automatic** policy:
+  1. classes whose workers were just found unreachable are skipped,
+  2. of the rest, classes that can decode the video in hardware (by their decoding codecs and
+     10-bit settings, e.g. AV1 only on one class) are preferred, if any can,
+  3. then the class with the fewest running transcodes per weight (Jellyfin's own transcode
+     jobs, plus sessions assigned in the last 30 seconds),
+  4. then a class that can encode the codec the client prefers (e.g. AV1),
+  5. and otherwise the classes take turns.
+
+  Other policies: take turns, a fixed class, or none. The session keeps its class for seeks
+  and later segments (remembered for 6 hours of inactivity). It only moves when its class's
+  workers are unreachable and it has no running transcode, e.g. when the player retries.
 - During that session's streaming requests, Jellyfin sees its transcoding settings with the
   class's hardware acceleration type, decoding codecs, tone mapping and HEVC/AV1 encoding
   settings. Jellyfin's saved settings are not changed.
@@ -120,7 +130,8 @@ behind its own address:
   Jellyfin's own settings and the worker above.
 
 Limitations: only QSV and NVENC (no VAAPI/AMD classes). Jellyfin's dashboard still shows its
-global settings. A session stays on its class even while that pool is down. The feature
+global settings. Unreachable workers are only noticed through failed commands (with the
+fallback enabled), and a running transcode is not moved. The feature
 depends on Jellyfin reading the transcoding settings for each request, which is true for
 10.11 and 12.1 but is not a public API.
 

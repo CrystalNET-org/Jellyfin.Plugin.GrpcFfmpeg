@@ -176,21 +176,27 @@ namespace Jellyfin.Plugin.GrpcFfmpeg.Tests
         [Fact]
         public async Task ContextFlowsPerAsyncFlow()
         {
+            var config = new PluginConfiguration { Enabled = true, EnableHardwareClasses = true, DefaultHardwareClass = HardwareClassSettings.Alternate };
+            config.IntelClass.Enabled = true;
+            config.NvidiaClass.Enabled = true;
+            var selector = new SessionClassSelector(() => config);
             var proxy = ConfigurationManagerProxy.Create(_inner.Object, () => HardwareClassContext.Current);
 
-            async Task<HardwareAccelerationType> Request(HardwareClassSettings? hardwareClass)
+            async Task<HardwareAccelerationType> Request(string? sessionId)
             {
-                HardwareClassContext.Current = hardwareClass;
+                HardwareClassContext.Request = sessionId is null ? null : new StreamRequest(sessionId, null, null, Array.Empty<string>(), selector);
                 await Task.Yield();
                 return await Task.Run(() => proxy.GetEncodingOptions().HardwareAccelerationType);
             }
 
-            var intel = new HardwareClassSettings { Name = HardwareClassSettings.Intel, Enabled = true, GrpcHost = "w" };
-            var results = await Task.WhenAll(Request(Nvidia()), Request(intel), Request(null));
+            var results = await Task.WhenAll(Request("a"), Request("b"), Request(null));
 
-            Assert.Equal(new[] { HardwareAccelerationType.nvenc, HardwareAccelerationType.qsv, HardwareAccelerationType.none }, results);
+            Assert.Equal(
+                new[] { HardwareAccelerationType.nvenc, HardwareAccelerationType.qsv },
+                results.Take(2).OrderBy(r => r.ToString()));
+            Assert.Equal(HardwareAccelerationType.none, results[2]);
             // Not leaked into the caller's flow
-            Assert.Null(HardwareClassContext.Current);
+            Assert.Null(HardwareClassContext.Request);
         }
     }
 }

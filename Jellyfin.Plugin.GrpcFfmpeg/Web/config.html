@@ -108,11 +108,15 @@
                         </div>
                         <div class="selectContainer">
                             <select is="emby-select" id="defaultHardwareClass" label="Class for new playback sessions">
+                                <option value="auto">Automatic: by hardware decoding support and load</option>
                                 <option value="alternate">Take turns between the enabled classes</option>
                                 <option value="intel">Intel QSV</option>
                                 <option value="nvidia">NVIDIA NVENC</option>
                                 <option value="">None (Jellyfin's transcoding settings)</option>
                             </select>
+                            <div class="fieldDescription">Automatic skips classes whose workers were just found unreachable,
+                                prefers classes that can decode the video in hardware, then the class with the fewest running
+                                transcodes per weight, then one that can encode the client's preferred codec.</div>
                         </div>
                         <div class="verticalSection" style="margin-left: 1em;">
                             <h4>Intel QSV</h4>
@@ -127,6 +131,10 @@
                             </div>
                             <div class="inputContainer">
                                 <input type="number" id="intelGrpcPort" is="emby-input" label="Port" min="1" max="65535" />
+                            </div>
+                            <div class="inputContainer">
+                                <input type="number" id="intelWeight" is="emby-input" label="Weight" min="1" max="100" />
+                                <div class="fieldDescription">Relative capacity of these workers, e.g. their total number of GPUs.</div>
                             </div>
                             <div class="inputContainer">
                                 <input type="text" id="intelDevice" is="emby-input" label="QSV device" />
@@ -180,6 +188,10 @@
                             </div>
                             <div class="inputContainer">
                                 <input type="number" id="nvidiaGrpcPort" is="emby-input" label="Port" min="1" max="65535" />
+                            </div>
+                            <div class="inputContainer">
+                                <input type="number" id="nvidiaWeight" is="emby-input" label="Weight" min="1" max="100" />
+                                <div class="fieldDescription">Relative capacity of these workers, e.g. their total number of GPUs.</div>
                             </div>
                             <div class="inputContainer">
                                 <input type="text" id="nvidiaHardwareDecodingCodecs" is="emby-input" label="Hardware decoding codecs" />
@@ -307,7 +319,7 @@
                         $('#retries').value = config.Retries || 2;
                         $('#connectTimeout').value = config.ConnectTimeout || 5;
                         $('#enableHardwareClasses').checked = config.EnableHardwareClasses;
-                        $('#defaultHardwareClass').value = config.DefaultHardwareClass == null ? 'alternate' : config.DefaultHardwareClass;
+                        $('#defaultHardwareClass').value = config.DefaultHardwareClass == null ? 'auto' : config.DefaultHardwareClass;
                         loadHardwareClass('intel', config.IntelClass || {});
                         loadHardwareClass('nvidia', config.NvidiaClass || {});
                         return loadStatus();
@@ -342,6 +354,7 @@
                     }
                     $('#' + name + 'GrpcHost').value = settings.GrpcHost || '';
                     $('#' + name + 'GrpcPort').value = settings.GrpcPort || 50051;
+                    $('#' + name + 'Weight').value = settings.Weight || 1;
                     $('#' + name + 'HardwareDecodingCodecs').value = (settings.HardwareDecodingCodecs || []).join(', ');
                     const device = $('#' + name + 'Device');
                     if (device) {
@@ -356,6 +369,7 @@
                     }
                     settings.GrpcHost = $('#' + name + 'GrpcHost').value.trim();
                     settings.GrpcPort = parseInt($('#' + name + 'GrpcPort').value, 10) || 50051;
+                    settings.Weight = Math.max(1, parseInt($('#' + name + 'Weight').value, 10) || 1);
                     settings.HardwareDecodingCodecs = $('#' + name + 'HardwareDecodingCodecs').value
                         .split(',').map(codec => codec.trim().toLowerCase()).filter(codec => codec);
                     const device = $('#' + name + 'Device');

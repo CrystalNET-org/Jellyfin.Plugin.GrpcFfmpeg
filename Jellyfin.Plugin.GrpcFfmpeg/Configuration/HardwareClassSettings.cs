@@ -16,6 +16,12 @@ namespace Jellyfin.Plugin.GrpcFfmpeg.Configuration
         public const string Alternate = "alternate";
 
         /// <summary>
+        /// Default class value: by reachability, hardware decoding support for the media,
+        /// load and the client's preferred codec.
+        /// </summary>
+        public const string Auto = "auto";
+
+        /// <summary>
         /// Gets or sets the class name, as used in the client's CLASS_ADDRESSES.
         /// </summary>
         public string Name { get; set; } = string.Empty;
@@ -25,6 +31,12 @@ namespace Jellyfin.Plugin.GrpcFfmpeg.Configuration
         public string GrpcHost { get; set; } = string.Empty;
 
         public int GrpcPort { get; set; } = 50051;
+
+        /// <summary>
+        /// Gets or sets the relative capacity of the class's workers (e.g. their number of
+        /// GPUs), for spreading sessions by load.
+        /// </summary>
+        public int Weight { get; set; } = 1;
 
         /// <summary>
         /// Gets or sets the QSV render node (Intel only); empty keeps Jellyfin's setting.

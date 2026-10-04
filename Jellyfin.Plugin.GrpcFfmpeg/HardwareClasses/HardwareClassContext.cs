@@ -3,7 +3,8 @@ using Jellyfin.Plugin.GrpcFfmpeg.Configuration;
 namespace Jellyfin.Plugin.GrpcFfmpeg.HardwareClasses
 {
     /// <summary>
-    /// The hardware class of the playback session the current request belongs to.
+    /// The streaming request being handled, and through it the hardware class of its
+    /// playback session.
     /// </summary>
     /// <remarks>
     /// Flows with the request's async calls, including the ffmpeg process Jellyfin
@@ -13,17 +14,22 @@ namespace Jellyfin.Plugin.GrpcFfmpeg.HardwareClasses
     /// </remarks>
     internal static class HardwareClassContext
     {
-        private static readonly AsyncLocal<HardwareClassSettings?> _current = new();
+        private static readonly AsyncLocal<StreamRequest?> _request = new();
 
         /// <summary>
         /// Gets or sets a value indicating whether hardware classes were enabled at startup.
         /// </summary>
         public static bool Active { get; set; }
 
-        public static HardwareClassSettings? Current
+        public static StreamRequest? Request
         {
-            get => _current.Value;
-            set => _current.Value = value;
+            get => _request.Value;
+            set => _request.Value = value;
         }
+
+        /// <summary>
+        /// Gets the class of the current request's session, choosing it on first use.
+        /// </summary>
+        public static HardwareClassSettings? Current => _request.Value?.Resolve();
     }
 }

@@ -14,49 +14,75 @@ namespace Jellyfin.Plugin.GrpcFfmpeg.Tests
             DefaultHardwareClass = HardwareClassSettings.Alternate,
         };
 
+        private readonly HashSet<string> _transcoding = new();
+        private readonly HashSet<string> _unreachable = new();
+        private readonly Dictionary<string, SourceVideo> _videos = new();
         private DateTime _now = new(2026, 10, 4, 12, 0, 0, DateTimeKind.Utc);
 
         public SessionClassSelectorTests()
         {
             _config.IntelClass.Enabled = true;
             _config.NvidiaClass.Enabled = true;
+            // Only the NVIDIA class decodes AV1 in hardware here
+            _config.IntelClass.HardwareDecodingCodecs = new[] { "h264", "hevc", "vp9" };
+            _config.NvidiaClass.HardwareDecodingCodecs = new[] { "h264", "hevc", "vp9", "av1" };
         }
 
-        private SessionClassSelector Create() => new(() => _config, () => _now);
+        private SessionClassSelector Create() => new(
+            () => _config,
+            request => _videos.TryGetValue(request.PlaySessionId, out var video) ? video : null,
+            id => _transcoding.Contains(id),
+            c => _unreachable.Contains(c.Name),
+            () => _now);
+
+        private static StreamRequest Request(string id, SessionClassSelector selector, params string[] codecs) =>
+            new(id, Guid.NewGuid(), null, codecs, selector);
+
+        private static string? Select(SessionClassSelector selector, string id, params string[] codecs) =>
+            selector.Select(Request(id, selector, codecs))?.Name;
 
         [Fact]
         public void AlternatesBetweenClassesForNewSessions()
         {
             var selector = Create();
-            Assert.Equal("intel", selector.Select("a", out var isNew)?.Name);
-            Assert.True(isNew);
-            Assert.Equal("nvidia", selector.Select("b", out _)?.Name);
-            Assert.Equal("intel", selector.Select("c", out _)?.Name);
+            Assert.Equal("intel", Select(selector, "a"));
+            Assert.Equal("nvidia", Select(selector, "b"));
+            Assert.Equal("intel", Select(selector, "c"));
         }
 
         [Fact]
         public void KeepsClassForSession()
         {
             var selector = Create();
-            var first = selector.Select("a", out _)?.Name;
-            selector.Select("b", out _);
+            var first = Select(selector, "a");
+            Select(selector, "b");
             for (var i = 0; i < 5; i++)
             {
                 _now += TimeSpan.FromMinutes(30);
-                Assert.Equal(first, selector.Select("a", out var isNew)?.Name);
-                Assert.False(isNew);
+                Assert.Equal(first, Select(selector, "a"));
             }
+        }
+
+        [Fact]
+        public void ReportsNewAssignmentsOnly()
+        {
+            var selector = Create();
+            var assigned = new List<string>();
+            selector.Assigned += (id, c, _) => assigned.Add(id + "=" + c?.Name);
+            Select(selector, "a");
+            Select(selector, "a");
+            Select(selector, "b");
+            Assert.Equal(new[] { "a=intel", "b=nvidia" }, assigned);
         }
 
         [Fact]
         public void ForgetsIdleSessions()
         {
             var selector = Create();
-            Assert.Equal("intel", selector.Select("a", out _)?.Name);
+            Assert.Equal("intel", Select(selector, "a"));
             _now += SessionClassSelector.Expiry + TimeSpan.FromMinutes(10);
             // Expired: "a" is new again and takes the next turn
-            Assert.Equal("nvidia", selector.Select("a", out var isNew)?.Name);
-            Assert.True(isNew);
+            Assert.Equal("nvidia", Select(selector, "a"));
             Assert.Equal(1, selector.Count);
         }
 
@@ -65,15 +91,15 @@ namespace Jellyfin.Plugin.GrpcFfmpeg.Tests
         {
             _config.DefaultHardwareClass = "nvidia";
             var selector = Create();
-            Assert.Equal("nvidia", selector.Select("a", out _)?.Name);
-            Assert.Equal("nvidia", selector.Select("b", out _)?.Name);
+            Assert.Equal("nvidia", Select(selector, "a"));
+            Assert.Equal("nvidia", Select(selector, "b"));
         }
 
         [Fact]
         public void EmptyDefaultUsesJellyfinSettings()
         {
             _config.DefaultHardwareClass = string.Empty;
-            Assert.Null(Create().Select("a", out _));
+            Assert.Null(Select(Create(), "a"));
         }
 
         [Fact]
@@ -81,44 +107,181 @@ namespace Jellyfin.Plugin.GrpcFfmpeg.Tests
         {
             _config.NvidiaClass.GrpcHost = " ";
             var selector = Create();
-            Assert.Equal("intel", selector.Select("a", out _)?.Name);
-            Assert.Equal("intel", selector.Select("b", out _)?.Name);
+            Assert.Equal("intel", Select(selector, "a"));
+            Assert.Equal("intel", Select(selector, "b"));
 
             _config.DefaultHardwareClass = "nvidia";
-            Assert.Null(selector.Select("c", out _));
+            Assert.Null(Select(selector, "c"));
         }
 
         [Fact]
         public void DisabledMeansNoClass()
         {
             var selector = Create();
-            Assert.NotNull(selector.Select("a", out _));
+            Assert.NotNull(Select(selector, "a"));
             _config.EnableHardwareClasses = false;
-            Assert.Null(selector.Select("a", out _));
+            Assert.Null(Select(selector, "a"));
         }
 
         [Fact]
-        public void ClassDisabledLaterFallsBackToJellyfinSettings()
+        public void ClassDisabledLaterIsReplaced()
         {
-            _config.DefaultHardwareClass = "nvidia";
+            _config.DefaultHardwareClass = HardwareClassSettings.Auto;
             var selector = Create();
-            Assert.Equal("nvidia", selector.Select("a", out _)?.Name);
-            _config.NvidiaClass.Enabled = false;
-            Assert.Null(selector.Select("a", out _));
+            Assert.Equal("intel", Select(selector, "a"));
+            _config.IntelClass.Enabled = false;
+            Assert.Equal("nvidia", Select(selector, "a"));
+        }
+
+        [Fact]
+        public void AutoPrefersClassThatDecodesTheMedia()
+        {
+            _config.DefaultHardwareClass = HardwareClassSettings.Auto;
+            var selector = Create();
+            _videos["av1"] = new SourceVideo("av1", 10);
+            _videos["av1-2"] = new SourceVideo("av1", 8);
+            Assert.Equal("nvidia", Select(selector, "av1"));
+            // Even though NVIDIA is busier now
+            _transcoding.Add("av1");
+            Assert.Equal("nvidia", Select(selector, "av1-2"));
+        }
+
+        [Fact]
+        public void AutoChecksBitDepth()
+        {
+            _config.DefaultHardwareClass = HardwareClassSettings.Auto;
+            _config.IntelClass.EnableDecodingColorDepth10Hevc = false;
+            var selector = Create();
+            _videos["hevc10"] = new SourceVideo("hevc", 10);
+            Assert.Equal("nvidia", Select(selector, "hevc10"));
+            // 10-bit H.264: no class decodes it in hardware, so load decides
+            _videos["h264-10"] = new SourceVideo("h264", 10);
+            _transcoding.Add("hevc10");
+            Assert.Equal("intel", Select(selector, "h264-10"));
+        }
+
+        [Fact]
+        public void AutoPicksLeastLoadedClass()
+        {
+            _config.DefaultHardwareClass = HardwareClassSettings.Auto;
+            var selector = Create();
+            Assert.Equal("intel", Select(selector, "a"));
+            // "a" is still starting, so it counts
+            Assert.Equal("nvidia", Select(selector, "b"));
+
+            _now += SessionClassSelector.StartingWindow + TimeSpan.FromSeconds(1);
+            _transcoding.Add("a");
+            // "b" stopped transcoding (e.g. direct play or ended): NVIDIA is idle
+            Assert.Equal("nvidia", Select(selector, "c"));
+            Assert.Equal(1, selector.Load("intel"));
+            Assert.Equal(1, selector.Load("nvidia"));
+        }
+
+        [Fact]
+        public void AutoUsesWeights()
+        {
+            _config.DefaultHardwareClass = HardwareClassSettings.Auto;
+            _config.NvidiaClass.Weight = 3;
+            var selector = Create();
+            var picks = Enumerable.Range(0, 8).Select(i => Select(selector, "s" + i)).ToList();
+            Assert.Equal(2, picks.Count(p => p == "intel"));
+            Assert.Equal(6, picks.Count(p => p == "nvidia"));
+        }
+
+        [Fact]
+        public void AutoPrefersClientsCodecWhenLoadIsEqual()
+        {
+            _config.DefaultHardwareClass = HardwareClassSettings.Auto;
+            _config.NvidiaClass.AllowAv1Encoding = true;
+            var selector = Create();
+            Assert.Equal("nvidia", Select(selector, "a", "av1", "hevc", "h264"));
+            // Load now differs: load wins over the codec preference
+            Assert.Equal("intel", Select(selector, "b", "av1", "h264"));
+        }
+
+        [Fact]
+        public void AutoAvoidsUnreachableClass()
+        {
+            _config.DefaultHardwareClass = HardwareClassSettings.Auto;
+            _unreachable.Add("intel");
+            var selector = Create();
+            Assert.Equal("nvidia", Select(selector, "a"));
+            Assert.Equal("nvidia", Select(selector, "b"));
+            // All unreachable: still assigns one
+            _unreachable.Add("nvidia");
+            Assert.NotNull(Select(selector, "c"));
+        }
+
+        [Fact]
+        public void MovesSessionOffDownClassWhenNothingRuns()
+        {
+            _config.DefaultHardwareClass = HardwareClassSettings.Auto;
+            var selector = Create();
+            Assert.Equal("intel", Select(selector, "a"));
+            _transcoding.Add("a");
+            _unreachable.Add("intel");
+            // Still transcoding there: keep it
+            Assert.Equal("intel", Select(selector, "a"));
+            // Its transcode is gone (failed or stopped): move it
+            _transcoding.Remove("a");
+            Assert.Equal("nvidia", Select(selector, "a"));
+        }
+
+        [Fact]
+        public void MediaLookupFailureDoesNotBreakSelection()
+        {
+            _config.DefaultHardwareClass = HardwareClassSettings.Auto;
+            var selector = new SessionClassSelector(() => _config, _ => throw new InvalidOperationException("db"));
+            Assert.Equal("intel", selector.Select(Request("a", selector))?.Name);
+        }
+
+        [Fact]
+        public void RequestResolvesOnce()
+        {
+            var selector = Create();
+            var request = Request("a", selector);
+            Assert.Equal("intel", request.Resolve()?.Name);
+            _config.IntelClass.Enabled = false;
+            Assert.Equal("intel", request.Resolve()?.Name);
         }
 
         [Theory]
-        [InlineData("/Videos/1234/main.m3u8", "?PlaySessionId=abc&VideoCodec=h264", "abc")]
-        [InlineData("/videos/1234/hls1/main/12.mp4", "?playSessionId=abc", "abc")]
-        [InlineData("/jellyfin/Videos/1234/stream.mkv", "?PlaySessionId=abc", "abc")]
-        [InlineData("/Audio/1234/universal", "?PlaySessionId=abc", "abc")]
-        [InlineData("/Videos/1234/main.m3u8", "?VideoCodec=h264", null)]
-        [InlineData("/Items/1234/PlaybackInfo", "?PlaySessionId=abc", null)]
+        [InlineData("/Videos/2c3cd9f4b7e24e5f9e7a6b9c1d2e3f40/main.m3u8", "?PlaySessionId=abc&VideoCodec=hevc,h264", "abc")]
+        [InlineData("/videos/2c3cd9f4b7e24e5f9e7a6b9c1d2e3f40/hls1/main/12.mp4", "?playSessionId=abc", "abc")]
+        [InlineData("/jellyfin/Videos/2c3cd9f4b7e24e5f9e7a6b9c1d2e3f40/stream.mkv", "?PlaySessionId=abc", "abc")]
+        [InlineData("/Audio/2c3cd9f4b7e24e5f9e7a6b9c1d2e3f40/universal", "?PlaySessionId=abc", "abc")]
+        [InlineData("/Videos/2c3cd9f4b7e24e5f9e7a6b9c1d2e3f40/main.m3u8", "?VideoCodec=h264", null)]
+        [InlineData("/Items/2c3cd9f4b7e24e5f9e7a6b9c1d2e3f40/PlaybackInfo", "?PlaySessionId=abc", null)]
         [InlineData("/Sessions/Playing", "?PlaySessionId=abc", null)]
-        public void FindsStreamingSessionId(string path, string query, string? expected)
+        [InlineData("/Videos", "?PlaySessionId=abc", null)]
+        public void ParsesStreamingRequests(string path, string query, string? expected)
         {
             var queryCollection = new QueryCollection(Microsoft.AspNetCore.WebUtilities.QueryHelpers.ParseQuery(query));
-            Assert.Equal(expected, HardwareClassStartupFilter.StreamingSessionId(new PathString(path), queryCollection));
+            var request = HardwareClassStartupFilter.ParseStreamRequest(new PathString(path), queryCollection, null);
+            Assert.Equal(expected, request?.PlaySessionId);
+            if (request is not null)
+            {
+                Assert.Equal(Guid.Parse("2c3cd9f4b7e24e5f9e7a6b9c1d2e3f40"), request.ItemId);
+            }
+        }
+
+        [Fact]
+        public void ParsesCodecsAndMediaSource()
+        {
+            var query = new QueryCollection(Microsoft.AspNetCore.WebUtilities.QueryHelpers.ParseQuery(
+                "?PlaySessionId=abc&VideoCodec=av1, hevc,h264&MediaSourceId=0f0e0d0c0b0a09080706050403020100"));
+            var request = HardwareClassStartupFilter.ParseStreamRequest(new PathString("/Videos/not-a-guid/main.m3u8"), query, null)!;
+            Assert.Equal(new[] { "av1", "hevc", "h264" }, request.RequestedVideoCodecs);
+            Assert.Equal(Guid.Parse("0f0e0d0c0b0a09080706050403020100"), request.MediaSourceId);
+            Assert.Null(request.ItemId);
+        }
+
+        [Fact]
+        public void MarkerPathMatchesClient()
+        {
+            // The client sanitizes "host_port": letters, digits, '.' and '-' stay, the rest becomes '_'
+            Assert.Equal(Path.Combine(Path.GetTempPath(), "grpc-ffmpeg-unreachable-workers-nvidia.lan_50051"), ClassHealth.MarkerPath("workers-nvidia.lan", 50051));
+            Assert.Equal(Path.Combine(Path.GetTempPath(), "grpc-ffmpeg-unreachable-fd00__1_50051"), ClassHealth.MarkerPath("[fd00::1]", 50051));
         }
 
         [Fact]

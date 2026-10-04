@@ -3,8 +3,10 @@ using Jellyfin.Plugin.GrpcFfmpeg.HardwareClasses;
 using MediaBrowser.Common.Configuration;
 using MediaBrowser.Controller;
 using MediaBrowser.Controller.Configuration;
+using MediaBrowser.Controller.Library;
 using MediaBrowser.Controller.MediaEncoding;
 using MediaBrowser.Controller.Plugins;
+using MediaBrowser.Model.Entities;
 using MediaBrowser.Model.Serialization;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
@@ -63,10 +65,39 @@ namespace Jellyfin.Plugin.GrpcFfmpeg
             serviceCollection.AddSingleton(services => new HardwareClassActivation(services, original));
             serviceCollection.AddSingleton<IServerConfigurationManager>(services => services.GetRequiredService<HardwareClassActivation>().ConfigurationManager);
             serviceCollection.AddSingleton<MediaBrowser.Common.Configuration.IConfigurationManager>(services => services.GetRequiredService<HardwareClassActivation>().ConfigurationManager);
-            serviceCollection.AddSingleton(_ => new SessionClassSelector(() => Plugin.Instance?.Configuration));
-            serviceCollection.AddTransient<IStartupFilter>(services => services.GetRequiredService<HardwareClassActivation>().Active
+            serviceCollection.AddSingleton(CreateSessionClassSelector);
+            serviceCollection.AddSingleton<IStartupFilter>(services => services.GetRequiredService<HardwareClassActivation>().Active
                 ? ActivatorUtilities.CreateInstance<HardwareClassStartupFilter>(services)
                 : new PassThroughStartupFilter());
+        }
+
+        /// <summary>
+        /// Creates the class selector. Jellyfin's services are resolved on first use, as they
+        /// depend on the configuration manager, whose proxy depends on the selector.
+        /// </summary>
+        private static SessionClassSelector CreateSessionClassSelector(IServiceProvider services)
+        {
+            SourceVideo? GetSourceVideo(StreamRequest request)
+            {
+                var id = request.MediaSourceId ?? request.ItemId;
+                if (id is null)
+                {
+                    return null;
+                }
+
+                var stream = services.GetRequiredService<IMediaSourceManager>().GetMediaStreams(id.Value)
+                    .FirstOrDefault(s => s.Type == MediaStreamType.Video);
+                return string.IsNullOrEmpty(stream?.Codec) ? null : new SourceVideo(stream.Codec, stream.BitDepth);
+            }
+
+            bool IsTranscoding(string playSessionId) =>
+                services.GetService<ITranscodeManager>()?.GetTranscodingJob(playSessionId) is { HasExited: false };
+
+            return new SessionClassSelector(
+                () => Plugin.Instance?.Configuration,
+                GetSourceVideo,
+                IsTranscoding,
+                hardwareClass => ClassHealth.IsUnreachable(hardwareClass, DateTime.UtcNow));
         }
 
         /// <summary>

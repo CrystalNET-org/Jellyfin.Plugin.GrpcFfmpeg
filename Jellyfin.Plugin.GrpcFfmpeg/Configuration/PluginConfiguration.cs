@@ -54,10 +54,11 @@ namespace Jellyfin.Plugin.GrpcFfmpeg.Configuration
 
         /// <summary>
         /// Gets or sets the class new playback sessions use: a class name ("intel",
-        /// "nvidia"), <see cref="HardwareClassSettings.Alternate"/> to take turns, or
-        /// empty for Jellyfin's own transcoding settings.
+        /// "nvidia"), <see cref="HardwareClassSettings.Auto"/> to choose by media and load,
+        /// <see cref="HardwareClassSettings.Alternate"/> to take turns, or empty for
+        /// Jellyfin's own transcoding settings.
         /// </summary>
-        public string DefaultHardwareClass { get; set; } = HardwareClassSettings.Alternate;
+        public string DefaultHardwareClass { get; set; } = HardwareClassSettings.Auto;
 
         public HardwareClassSettings IntelClass { get; set; } = new() { Name = HardwareClassSettings.Intel, GrpcHost = "ffmpeg-workers-intel" };
 
