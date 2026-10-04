@@ -1,4 +1,8 @@
-# Tag as <major>.<minor>.<patch> (e.g. 0.2.0) to build, release and list a new version
+# Tag as <major>.<minor>.<patch> (e.g. 0.2.0) to build, release and list a new version.
+# Nothing is published unless the integration test passes for the tagged commit.
+depends_on:
+  - integration
+
 when:
   - event: tag
 

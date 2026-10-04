@@ -48,7 +48,18 @@ namespace Jellyfin.Plugin.GrpcFfmpeg.HardwareClasses
             {
                 if (!_resolved)
                 {
-                    _class = _selector?.Select(this);
+                    HardwareClassDiagnostics.Resolved();
+                    try
+                    {
+                        _class = _selector?.Select(this);
+                    }
+                    catch (Exception ex)
+                    {
+                        // Never break playback: this request uses Jellyfin's settings
+                        HardwareClassDiagnostics.Error("choosing the class", ex);
+                        _class = null;
+                    }
+
                     _resolved = true;
                 }
 

@@ -113,6 +113,12 @@ namespace Jellyfin.Plugin.GrpcFfmpeg.HardwareClasses
         }
 
         /// <summary>
+        /// Gets the number of the class's sessions with a running transcode.
+        /// </summary>
+        public int TranscodingSessions(string className) =>
+            _sessions.Count(pair => pair.Value.ClassName == className && _isTranscoding(pair.Key));
+
+        /// <summary>
         /// Gets whether the class can decode the video in hardware with its settings.
         /// </summary>
         public static bool CanDecode(HardwareClassSettings hardwareClass, SourceVideo video)

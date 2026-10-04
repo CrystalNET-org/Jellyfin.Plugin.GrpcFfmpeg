@@ -140,6 +140,16 @@ namespace Jellyfin.Plugin.GrpcFfmpeg
             }
 
             var message = match.Groups["message"].Value;
+            if (HardwareClasses.HardwareClassContext.Active)
+            {
+                // "run [nvidia host:port]: …" from clients with CLASS_ADDRESSES, "run: …" otherwise
+                var run = RunRegex().Match(message);
+                if (run.Success)
+                {
+                    HardwareClasses.HardwareClassDiagnostics.ClientRun(run.Groups["class"].Success ? run.Groups["class"].Value : null);
+                }
+            }
+
             var fallback = FallbackRegex().Match(message);
             if (fallback.Success)
             {
@@ -260,6 +270,9 @@ namespace Jellyfin.Plugin.GrpcFfmpeg
         // "No worker reachable, running <path> locally"
         [GeneratedRegex(@"^(?:fallback \((?<reason>.*)\): running .+ locally|No worker reachable, running .+ locally)$")]
         private static partial Regex FallbackRegex();
+
+        [GeneratedRegex(@"^run(?: \[(?<class>\S+) [^\]]*\])?: ")]
+        private static partial Regex RunRegex();
     }
 
     /// <summary>

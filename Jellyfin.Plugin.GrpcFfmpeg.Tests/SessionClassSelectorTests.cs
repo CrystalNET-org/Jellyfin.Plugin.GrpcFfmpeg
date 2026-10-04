@@ -5,6 +5,7 @@ using Xunit;
 
 namespace Jellyfin.Plugin.GrpcFfmpeg.Tests
 {
+    [Collection(StaticStateCollection.Name)]
     public class SessionClassSelectorTests
     {
         private readonly PluginConfiguration _config = new()

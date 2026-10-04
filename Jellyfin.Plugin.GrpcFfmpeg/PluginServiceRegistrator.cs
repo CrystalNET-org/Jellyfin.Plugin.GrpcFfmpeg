@@ -117,6 +117,7 @@ namespace Jellyfin.Plugin.GrpcFfmpeg
                         ConfigurationManager = ConfigurationManagerProxy.Create(original, () => HardwareClassContext.Current, logger);
                         Active = true;
                         HardwareClassContext.Active = true;
+                        HardwareClassDiagnostics.Logger = logger;
                         logger.LogInformation(
                             "gRPC-ffmpeg: experimental hardware classes enabled ({Classes})",
                             string.Join(", ", config.HardwareClasses().Where(c => c.Address is not null).Select(c => c.Name + "=" + c.Address)));

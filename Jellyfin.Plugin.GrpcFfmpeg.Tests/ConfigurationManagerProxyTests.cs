@@ -10,6 +10,7 @@ using Xunit;
 
 namespace Jellyfin.Plugin.GrpcFfmpeg.Tests
 {
+    [Collection(StaticStateCollection.Name)]
     public class ConfigurationManagerProxyTests
     {
         private readonly EncodingOptions _global = new()

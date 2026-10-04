@@ -35,3 +35,7 @@ TestResults/
 # Downloaded grpc-ffmpeg client binaries
 Jellyfin.Plugin.GrpcFfmpeg/Assets/
 artifacts/
+
+# Integration test: the workers' ffmpeg wrappers are sources; its test root is not
+!tests/integration/bin/
+.integration/

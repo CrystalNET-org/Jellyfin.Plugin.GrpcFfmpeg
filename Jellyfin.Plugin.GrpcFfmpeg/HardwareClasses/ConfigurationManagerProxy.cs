@@ -120,9 +120,17 @@ namespace Jellyfin.Plugin.GrpcFfmpeg.HardwareClasses
                 && result is EncodingOptions global
                 && _currentClass() is { } hardwareClass)
             {
-                var copy = WithClass(global, hardwareClass);
-                _copies.AddOrUpdate(copy, hardwareClass);
-                return copy;
+                try
+                {
+                    var copy = WithClass(global, hardwareClass);
+                    _copies.AddOrUpdate(copy, hardwareClass);
+                    return copy;
+                }
+                catch (Exception ex)
+                {
+                    // e.g. a property missing in another Jellyfin version: keep playback working
+                    HardwareClassDiagnostics.Error("applying the class settings", ex);
+                }
             }
 
             return result;
