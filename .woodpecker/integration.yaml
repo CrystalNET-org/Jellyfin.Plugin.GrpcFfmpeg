@@ -15,8 +15,8 @@ when:
 matrix:
   # Not updated by Renovate; add new Jellyfin releases here
   JELLYFIN_IMAGE:
-    - jellyfin/jellyfin:10.11.11
-    - jellyfin/jellyfin:12.1
+    - harbor.crystalnet.org/dockerhub-proxy/jellyfin/jellyfin:10.11.11
+    - harbor.crystalnet.org/dockerhub-proxy/jellyfin/jellyfin:12.1
 
 steps:
   - name: build
@@ -59,7 +59,7 @@ steps:
       - ROOT=$${CI_WORKSPACE}/.integration exec sh tests/integration/start-jellyfin.sh
 
   - name: check
-    image: python:3.14-slim
+    image: harbor.crystalnet.org/dockerhub-proxy/library/python:3.14-slim
     environment:
       JELLYFIN_URL: http://jellyfin:8096
     commands:

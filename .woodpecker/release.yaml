@@ -29,7 +29,7 @@ steps:
       - ls -l artifacts
 
   - name: publish-release
-    image: woodpeckerci/plugin-release:0.3.2
+    image: harbor.crystalnet.org/dockerhub-proxy/woodpeckerci/plugin-release:0.3.2
     settings:
       files:
         - artifacts/*.zip
@@ -38,7 +38,7 @@ steps:
       note: "Automated release by Woodpecker CI for $${CI_COMMIT_TAG}"
 
   - name: update-manifest
-    image: python:3.14-slim
+    image: harbor.crystalnet.org/dockerhub-proxy/library/python:3.14-slim
     environment:
       GITHUB_TOKEN:
         from_secret: GITHUB_TOKEN
