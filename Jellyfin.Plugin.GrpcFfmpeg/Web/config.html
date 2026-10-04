@@ -121,21 +121,12 @@
                                 <input type="text" id="intelDevice" is="emby-input" label="QSV device" />
                                 <div class="fieldDescription">Render node on the workers, e.g. /dev/dri/renderD128. Empty keeps Jellyfin's setting.</div>
                             </div>
-                            <div class="inputContainer">
-                                <input type="text" id="intelHardwareDecodingCodecs" is="emby-input" label="Hardware decoding codecs" />
-                                <div class="fieldDescription">Comma-separated, e.g. h264, hevc, mpeg2video, vc1, vp8, vp9, av1.</div>
-                            </div>
-                            <div class="checkboxContainer">
+                            <div class="checkboxContainer checkboxContainer-withDescription">
                                 <label>
-                                    <input is="emby-checkbox" type="checkbox" id="intelEnableDecodingColorDepth10Hevc" />
-                                    <span>10-bit HEVC decoding</span>
+                                    <input is="emby-checkbox" type="checkbox" id="intelVc1" />
+                                    <span>VC-1 hardware decoding</span>
                                 </label>
-                            </div>
-                            <div class="checkboxContainer">
-                                <label>
-                                    <input is="emby-checkbox" type="checkbox" id="intelEnableDecodingColorDepth10Vp9" />
-                                    <span>10-bit VP9 decoding</span>
-                                </label>
+                                <div class="fieldDescription checkboxFieldDescription">The other codecs are detected on the workers; VC-1 cannot be tested.</div>
                             </div>
                             <div class="checkboxContainer">
                                 <label>
@@ -143,7 +134,8 @@
                                     <span>Tone mapping (HDR to SDR)</span>
                                 </label>
                             </div>
-                            <div class="fieldDescription" style="margin-bottom: 1em;">Encoders: <span id="intelEncoders"></span></div>
+                            <div class="fieldDescription">Decoding: <span id="intelDecoders"></span></div>
+                            <div class="fieldDescription" style="margin-bottom: 1em;">Encoding: <span id="intelEncoders"></span></div>
                             <div>
                                 <button is="emby-button" type="button" class="raised block testButton" data-target="intel"><span>Test</span></button>
                             </div>
@@ -169,21 +161,12 @@
                                 <input type="number" id="nvidiaWeight" is="emby-input" label="Weight" min="1" max="100" />
                                 <div class="fieldDescription">Relative capacity of these workers, e.g. their total number of GPUs.</div>
                             </div>
-                            <div class="inputContainer">
-                                <input type="text" id="nvidiaHardwareDecodingCodecs" is="emby-input" label="Hardware decoding codecs" />
-                                <div class="fieldDescription">Comma-separated, e.g. h264, hevc, mpeg2video, vc1, vp8, vp9, av1.</div>
-                            </div>
-                            <div class="checkboxContainer">
+                            <div class="checkboxContainer checkboxContainer-withDescription">
                                 <label>
-                                    <input is="emby-checkbox" type="checkbox" id="nvidiaEnableDecodingColorDepth10Hevc" />
-                                    <span>10-bit HEVC decoding</span>
+                                    <input is="emby-checkbox" type="checkbox" id="nvidiaVc1" />
+                                    <span>VC-1 hardware decoding</span>
                                 </label>
-                            </div>
-                            <div class="checkboxContainer">
-                                <label>
-                                    <input is="emby-checkbox" type="checkbox" id="nvidiaEnableDecodingColorDepth10Vp9" />
-                                    <span>10-bit VP9 decoding</span>
-                                </label>
+                                <div class="fieldDescription checkboxFieldDescription">The other codecs are detected on the workers; VC-1 cannot be tested.</div>
                             </div>
                             <div class="checkboxContainer">
                                 <label>
@@ -191,7 +174,8 @@
                                     <span>Tone mapping (HDR to SDR)</span>
                                 </label>
                             </div>
-                            <div class="fieldDescription" style="margin-bottom: 1em;">Encoders: <span id="nvidiaEncoders"></span></div>
+                            <div class="fieldDescription">Decoding: <span id="nvidiaDecoders"></span></div>
+                            <div class="fieldDescription" style="margin-bottom: 1em;">Encoding: <span id="nvidiaEncoders"></span></div>
                             <div>
                                 <button is="emby-button" type="button" class="raised block testButton" data-target="nvidia"><span>Test</span></button>
                             </div>
@@ -270,6 +254,21 @@
 
                 const classNames = ['intel', 'nvidia'];
                 const codecNames = { h264: 'H.264', hevc: 'HEVC', av1: 'AV1' };
+                // Decoding tests: id, name, and how the saved settings express it
+                const decodeTests = [
+                    ['h264', 'H.264', s => hasCodec(s, 'h264')],
+                    ['hevc', 'HEVC', s => hasCodec(s, 'hevc')],
+                    ['hevc10', 'HEVC 10-bit', s => hasCodec(s, 'hevc') && s.EnableDecodingColorDepth10Hevc],
+                    ['mpeg2video', 'MPEG-2', s => hasCodec(s, 'mpeg2video')],
+                    ['vp8', 'VP8', s => hasCodec(s, 'vp8')],
+                    ['vp9', 'VP9', s => hasCodec(s, 'vp9')],
+                    ['vp910', 'VP9 10-bit', s => hasCodec(s, 'vp9') && s.EnableDecodingColorDepth10Vp9],
+                    ['av1', 'AV1', s => hasCodec(s, 'av1')],
+                ];
+
+                function hasCodec(settings, codec) {
+                    return (settings.HardwareDecodingCodecs || []).map(c => c.toLowerCase()).includes(codec);
+                }
                 let lastStatus = {};
                 let lastConfig = {};
 
@@ -337,6 +336,15 @@
                     $('#' + name + 'Encoders').innerHTML = Object.keys(codecNames)
                         .map(codec => escapeHtml(codecNames[codec]) + (has(codec) ? ' ✔' : ' ✘')).join(', ')
                         + (detected ? ' (detected on the workers)' : ' (saved; detected once the workers have been checked)');
+
+                    // Detected decoders where tested, the saved settings otherwise
+                    const decodingTested = result && get(result, 'DecodingTested');
+                    const decoders = decodingTested ? get(result, 'Decoders') || [] : [];
+                    const tested = decodingTested ? get(result, 'DecodeTested') || [] : [];
+                    $('#' + name + 'Decoders').innerHTML = decodeTests
+                        .map(([id, label, saved]) => escapeHtml(label) + ((tested.includes(id) ? decoders.includes(id) : saved(settings)) ? ' ✔' : ' ✘'))
+                        .join(', ')
+                        + (decodingTested ? ' (detected on the workers)' : ' (saved; detected once the workers have been checked)');
                 }
 
                 function loadStatus() {
@@ -434,7 +442,8 @@
                         .then(config => ApiClient.updatePluginConfiguration(pluginId, collectConfiguration(config)));
                 }
 
-                const hardwareClassFlags = ['Enabled', 'EnableDecodingColorDepth10Hevc', 'EnableDecodingColorDepth10Vp9', 'EnableTonemapping'];
+                // Decoding and encoding are detected; only VC-1 decoding, which cannot be tested, is set here
+                const hardwareClassFlags = ['Enabled', 'EnableTonemapping'];
 
                 function loadHardwareClass(name, settings) {
                     for (const flag of hardwareClassFlags) {
@@ -443,7 +452,7 @@
                     $('#' + name + 'GrpcHost').value = settings.GrpcHost || '';
                     $('#' + name + 'GrpcPort').value = settings.GrpcPort || 50051;
                     $('#' + name + 'Weight').value = settings.Weight || 1;
-                    $('#' + name + 'HardwareDecodingCodecs').value = (settings.HardwareDecodingCodecs || []).join(', ');
+                    $('#' + name + 'Vc1').checked = hasCodec(settings, 'vc1');
                     const device = $('#' + name + 'Device');
                     if (device) {
                         device.value = settings.Device || '';
@@ -458,8 +467,14 @@
                     settings.GrpcHost = $('#' + name + 'GrpcHost').value.trim();
                     settings.GrpcPort = parseInt($('#' + name + 'GrpcPort').value, 10) || 50051;
                     settings.Weight = Math.max(1, parseInt($('#' + name + 'Weight').value, 10) || 1);
-                    settings.HardwareDecodingCodecs = $('#' + name + 'HardwareDecodingCodecs').value
-                        .split(',').map(codec => codec.trim().toLowerCase()).filter(codec => codec);
+                    const codecs = (settings.HardwareDecodingCodecs || []).filter(codec => codec.toLowerCase() !== 'vc1');
+                    if ($('#' + name + 'Vc1').checked) {
+                        codecs.push('vc1');
+                    }
+                    // In the order of Jellyfin's settings
+                    const order = ['h264', 'hevc', 'mpeg2video', 'vc1', 'vp8', 'vp9', 'av1'];
+                    const rank = codec => order.includes(codec) ? order.indexOf(codec) : order.length;
+                    settings.HardwareDecodingCodecs = codecs.sort((a, b) => rank(a) - rank(b));
                     const device = $('#' + name + 'Device');
                     if (device) {
                         settings.Device = device.value.trim();
@@ -601,7 +616,7 @@
                         const box = page.querySelector('.testResult[data-target="' + target + '"]');
                         box.textContent = target === 'default'
                             ? 'Testing the connection and the shared directories…'
-                            : 'Testing the workers, their GPU encoders and the shared directories…';
+                            : 'Testing the workers, their GPU decoders and encoders, and the shared directories…';
                         button.disabled = true;
                         ApiClient.getPluginConfiguration(pluginId)
                             .then(config => api('POST', 'GrpcFfmpeg/Test?target=' + encodeURIComponent(target), true, collectConfiguration(config)))

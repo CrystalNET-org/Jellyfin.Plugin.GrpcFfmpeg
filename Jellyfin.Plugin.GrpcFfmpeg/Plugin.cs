@@ -86,9 +86,9 @@ namespace Jellyfin.Plugin.GrpcFfmpeg
         }
 
         /// <summary>
-        /// Checks in the background which codecs the enabled hardware classes' GPUs encode,
-        /// and saves that as their HEVC and AV1 encoding settings. Results for workers that
-        /// cannot be reached, or whose GPU does not work, leave the settings as they are.
+        /// Checks in the background which codecs the enabled hardware classes' GPUs encode and
+        /// decode, and saves that as their encoding and decoding settings. Results for workers
+        /// that cannot be reached, or whose GPU does not work, leave the settings as they are.
         /// </summary>
         private void DetectClassEncoders(TimeSpan delay)
         {
@@ -116,14 +116,19 @@ namespace Jellyfin.Plugin.GrpcFfmpeg
 
                             var result = await ClassProbe.RunAsync(
                                 hardwareClass,
-                                (name, arguments) => SetupCheck.RunClientAsync(DeployDirectory, name, arguments, environment)).ConfigureAwait(false);
+                                (name, arguments, stdin) => SetupCheck.RunClientAsync(DeployDirectory, name, arguments, environment, stdin)).ConfigureAwait(false);
                             if (!result.GpuUsable)
                             {
                                 _logger.LogWarning("gRPC-ffmpeg: could not check hardware class {Class} ({Address}): {Error}", result.Class, result.Address, result.Error);
                                 continue;
                             }
 
-                            _logger.LogInformation("gRPC-ffmpeg: hardware class {Class} ({Address}) encodes {Codecs}", result.Class, result.Address, string.Join(", ", result.Encoders));
+                            _logger.LogInformation(
+                                "gRPC-ffmpeg: hardware class {Class} ({Address}) encodes {Encoders}, decodes {Decoders}",
+                                result.Class,
+                                result.Address,
+                                string.Join(", ", result.Encoders),
+                                result.DecodingTested ? string.Join(", ", result.Decoders!) : "(decoding test failed, settings kept)");
                             // The settings may have been saved meanwhile: apply to the current ones
                             var current = Configuration;
                             if (ClassProbe.Apply(current, result))

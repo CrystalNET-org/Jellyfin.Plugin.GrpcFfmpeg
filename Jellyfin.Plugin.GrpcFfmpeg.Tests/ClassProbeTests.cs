@@ -19,10 +19,15 @@ namespace Jellyfin.Plugin.GrpcFfmpeg.Tests
         public void Dispose() => ClassProbe.Reset();
 
         /// <summary>
-        /// Workers whose GPU encodes the given codecs; records the commands.
+        /// Workers whose GPU encodes the given codecs and decodes the given test clips (all
+        /// by default), and whose ffmpeg can make the given clips (all by default); records
+        /// the commands.
         /// </summary>
         private static ClassProbe.ClientRunner Workers(List<string[]> commands, bool reachable = true, params string[] codecs) =>
-            (name, arguments) =>
+            Workers(commands, reachable, codecs, ClassProbe.DecodeTests.Select(t => t.Id).ToArray(), ClassProbe.DecodeTests.Select(t => t.Id).ToArray());
+
+        private static ClassProbe.ClientRunner Workers(List<string[]> commands, bool reachable, string[] codecs, string[] decodes, string[] clips) =>
+            (name, arguments, stdin) =>
             {
                 commands.Add(arguments.ToArray());
                 if (!reachable)
@@ -33,6 +38,23 @@ namespace Jellyfin.Plugin.GrpcFfmpeg.Tests
                 if (arguments.Contains("-version"))
                 {
                     return Task.FromResult(new CommandResult(0, "ffmpeg version 8.1.3-Jellyfin\nbuilt with gcc", string.Empty));
+                }
+
+                if (arguments.Contains("pipe:1"))
+                {
+                    // A test clip: its "content" names the test, so the decode can tell which arrived
+                    var test = ClassProbe.DecodeTests.First(t => string.Join(' ', arguments).Contains(string.Join(' ', t.Encoder), StringComparison.Ordinal));
+                    return Task.FromResult(clips.Contains(test.Id)
+                        ? new CommandResult(0, string.Empty, string.Empty, System.Text.Encoding.ASCII.GetBytes(test.Id))
+                        : new CommandResult(1, string.Empty, "Unknown encoder"));
+                }
+
+                if (arguments.Contains("pipe:0"))
+                {
+                    var clip = System.Text.Encoding.ASCII.GetString(stdin!);
+                    return Task.FromResult(decodes.Contains(clip)
+                        ? new CommandResult(0, string.Empty, string.Empty)
+                        : new CommandResult(1, string.Empty, "Codec not supported"));
                 }
 
                 var encoder = arguments[arguments.ToList().IndexOf("-c:v") + 1];
@@ -75,7 +97,9 @@ namespace Jellyfin.Plugin.GrpcFfmpeg.Tests
             Assert.True(result.GpuUsable);
             Assert.Equal("ffmpeg version 8.1.3-Jellyfin", result.Version);
             Assert.Equal(new[] { "h264", "hevc", "av1" }, result.Encoders);
-            Assert.Equal(4, commands.Count);
+            Assert.True(result.DecodingTested);
+            // Version, three encodes, a clip and a decode per decoding test
+            Assert.Equal(4 + (2 * ClassProbe.DecodeTests.Length), commands.Count);
             Assert.Same(result, ClassProbe.Latest("nvidia"));
 
             Assert.True(ClassProbe.Apply(_config, result));
@@ -116,6 +140,80 @@ namespace Jellyfin.Plugin.GrpcFfmpeg.Tests
             Assert.Equal(2, commands.Count);
             Assert.False(ClassProbe.Apply(_config, noGpu));
             Assert.True(_config.NvidiaClass.AllowHevcEncoding);
+        }
+
+        [Fact]
+        public void DecodeTestsForceTheGpuDecoder()
+        {
+            var hevc10 = ClassProbe.DecodeTests.Single(t => t.Id == "hevc10");
+            var clip = string.Join(' ', ClassProbe.ClipArguments(hevc10));
+            Assert.Contains("-c:v libx265 -pix_fmt yuv420p10le", clip, StringComparison.Ordinal);
+            Assert.EndsWith("-f matroska pipe:1", clip, StringComparison.Ordinal);
+
+            var nvidia = string.Join(' ', ClassProbe.DecodeTestArguments(_config.NvidiaClass, hevc10));
+            Assert.Contains("-init_hw_device cuda=cu:0 -c:v hevc_cuvid -f matroska -i pipe:0", nvidia, StringComparison.Ordinal);
+            var intel = string.Join(' ', ClassProbe.DecodeTestArguments(_config.IntelClass, hevc10));
+            Assert.Contains("-init_hw_device qsv=qs@va -hwaccel qsv -hwaccel_device qs -c:v hevc_qsv -f matroska -i pipe:0", intel, StringComparison.Ordinal);
+            Assert.DoesNotContain("hwaccel_output_format", intel, StringComparison.Ordinal);
+        }
+
+        [Fact]
+        public async Task DetectsTheDecodersAndAppliesThem()
+        {
+            // As saved: wrong, and with VC-1, which cannot be tested
+            _config.IntelClass.HardwareDecodingCodecs = new[] { "h264", "vc1", "av1" };
+            _config.IntelClass.EnableDecodingColorDepth10Hevc = false;
+            _config.IntelClass.EnableDecodingColorDepth10Vp9 = true;
+            var decodes = new[] { "h264", "hevc", "hevc10", "vp8", "vp9" };
+            var result = await ClassProbe.RunAsync(
+                _config.IntelClass,
+                Workers(new List<string[]>(), true, new[] { "h264", "hevc" }, decodes, ClassProbe.DecodeTests.Select(t => t.Id).ToArray()));
+
+            Assert.Equal(decodes, result.Decoders);
+            Assert.True(ClassProbe.Apply(_config, result));
+            Assert.Equal(new[] { "h264", "hevc", "vc1", "vp8", "vp9" }, _config.IntelClass.HardwareDecodingCodecs);
+            Assert.True(_config.IntelClass.EnableDecodingColorDepth10Hevc);
+            Assert.False(_config.IntelClass.EnableDecodingColorDepth10Vp9);
+            Assert.False(ClassProbe.Apply(_config, result));
+        }
+
+        [Fact]
+        public async Task KeepsWhatCouldNotBeTested()
+        {
+            // The workers' ffmpeg cannot make AV1 or VP8 clips: those settings stay
+            _config.NvidiaClass.HardwareDecodingCodecs = new[] { "h264", "vp8" };
+            var clips = new[] { "h264", "hevc", "hevc10", "mpeg2video", "vp9", "vp910" };
+            var result = await ClassProbe.RunAsync(
+                _config.NvidiaClass,
+                Workers(new List<string[]>(), true, new[] { "h264" }, ClassProbe.DecodeTests.Select(t => t.Id).ToArray(), clips));
+
+            Assert.Equal(clips, result.DecodeTested);
+            Assert.True(ClassProbe.Apply(_config, result));
+            Assert.Equal(new[] { "h264", "hevc", "mpeg2video", "vp8", "vp9" }, _config.NvidiaClass.HardwareDecodingCodecs);
+        }
+
+        [Fact]
+        public async Task IgnoresADecodingTestThatDoesNotWork()
+        {
+            // Not even H.264 decoded: the test is broken (e.g. a decoder setup that does not fit
+            // the driver), so it must not turn off hardware decoding
+            var before = _config.NvidiaClass.HardwareDecodingCodecs.ToArray();
+            var result = await ClassProbe.RunAsync(
+                _config.NvidiaClass,
+                Workers(new List<string[]>(), true, new[] { "h264", "hevc" }, Array.Empty<string>(), ClassProbe.DecodeTests.Select(t => t.Id).ToArray()));
+
+            Assert.True(result.GpuUsable);
+            Assert.False(result.DecodingTested);
+            Assert.True(ClassProbe.Apply(_config, result));
+            Assert.True(_config.NvidiaClass.AllowHevcEncoding);
+            Assert.Equal(before, _config.NvidiaClass.HardwareDecodingCodecs);
+        }
+
+        [Fact]
+        public void ToneMappingIsOnForNewClasses()
+        {
+            var config = new PluginConfiguration();
+            Assert.All(config.HardwareClasses(), c => Assert.True(c.EnableTonemapping));
         }
 
         [Fact]

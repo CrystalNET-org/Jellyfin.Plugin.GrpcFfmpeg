@@ -133,14 +133,23 @@ each for the default workers, Intel QSV and NVIDIA NVENC:
   Everything else, such as startup checks, library scans, trickplay and image extraction, uses
   Jellyfin's own settings and the worker above. Like the switch itself, the addresses only
   change with a restart.
-- **Encoders are detected**: on startup and whenever the settings are saved, each enabled
-  class's workers encode a few test frames with H.264, HEVC and AV1 on their GPU, set up like
-  Jellyfin's own commands. What works becomes the class's HEVC and AV1 encoding settings (the
-  ffmpeg build lists every encoder, so only a real encode tells). Workers that can't be
-  reached, or whose GPU doesn't work, leave the settings as they were.
+- **Decoders and encoders are detected**: on startup and whenever the settings are saved, each
+  enabled class's workers
+  - encode a few test frames with H.264, HEVC and AV1 on their GPU, set up like Jellyfin's own
+    commands (the ffmpeg build lists every encoder, so only a real encode tells), and
+  - make short test clips in software (H.264, HEVC and VP9 in 8 and 10 bit, MPEG-2, VP8, AV1)
+    and decode them with the GPU's decoder (`*_cuvid`, `*_qsv`), which fails instead of
+    falling back to software.
+
+  What works becomes the class's encoding, hardware decoding and 10-bit decoding settings.
+  VC-1 can't be tested (no software encoder) and is set by hand. Workers that can't be
+  reached, or whose GPU doesn't work, leave the settings as they were, and so does a decoding
+  test that can't even decode H.264.
+- Tone mapping is on by default for each class, as the class's settings replace Jellyfin's.
 - Each class's tab shows its workers' last check and, while active, its sessions and routed
   commands. Its **Test** button checks the workers as entered: that they answer, which codecs
-  their GPU encodes, and that they share the transcode directory and can read the media.
+  their GPU decodes and encodes, and that they share the transcode directory and can read the
+  media.
 
 Limitations: only QSV and NVENC (no VAAPI/AMD classes). Jellyfin's dashboard still shows its
 global settings. Unreachable workers are only noticed through failed commands (with the

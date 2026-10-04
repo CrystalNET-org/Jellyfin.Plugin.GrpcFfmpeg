@@ -238,8 +238,8 @@ namespace Jellyfin.Plugin.GrpcFfmpeg
 
         /// <summary>
         /// Tests a hardware class's workers (experimental): that they answer, which codecs
-        /// their GPU encodes, and that they share the transcode directory and can read the
-        /// media, as they run the transcodes of the class's sessions.
+        /// their GPU encodes and decodes, and that they share the transcode directory and can
+        /// read the media, as they run the transcodes of the class's sessions.
         /// </summary>
         public async Task<TestResult> RunClassAsync(HardwareClassSettings hardwareClass)
         {
@@ -249,7 +249,7 @@ namespace Jellyfin.Plugin.GrpcFfmpeg
             }
 
             var environment = ClassEnvironment(hardwareClass);
-            var probe = await ClassProbe.RunAsync(hardwareClass, (name, arguments) => RunClientAsync(name, arguments, environment)).ConfigureAwait(false);
+            var probe = await ClassProbe.RunAsync(hardwareClass, (name, arguments, stdin) => RunClientAsync(name, arguments, environment, stdin)).ConfigureAwait(false);
             if (!probe.Reachable)
             {
                 return new TestResult(false, 1, probe.Error ?? "No answer", new List<CheckResult>(), new List<string>());
@@ -262,6 +262,12 @@ namespace Jellyfin.Plugin.GrpcFfmpeg
                     : new CheckResult("GPU", hardwareClass.AccelerationType.ToString(), false, probe.Error ?? "Not usable"),
                 await CheckDirectoryAsync("Transcode directory", () => _configurationManager.GetTranscodePath(), environment).ConfigureAwait(false),
             };
+            if (probe.GpuUsable)
+            {
+                checks.Insert(1, probe.DecodingTested
+                    ? new CheckResult("GPU decoding", string.Empty, true, DecodingSummary(probe))
+                    : new CheckResult("GPU decoding", string.Empty, false, "Could not decode the H.264 test clip, so decoding was not detected; the settings stay as they are"));
+            }
 
             string? mediaFile = null;
             try
@@ -318,7 +324,7 @@ namespace Jellyfin.Plugin.GrpcFfmpeg
         /// Runs the deployed client as the given binary, against the workers only: without the
         /// fallback and with a single attempt.
         /// </summary>
-        public static Task<CommandResult> RunClientAsync(string deployDirectory, string name, IEnumerable<string> arguments, Dictionary<string, string>? environment = null)
+        public static Task<CommandResult> RunClientAsync(string deployDirectory, string name, IEnumerable<string> arguments, Dictionary<string, string>? environment = null, byte[]? stdin = null)
         {
             var path = Path.Combine(deployDirectory, name + (OperatingSystem.IsWindows() ? ".exe" : string.Empty));
             var settings = new Dictionary<string, string> { ["FALLBACK_DIR"] = string.Empty, ["RETRIES"] = "1" };
@@ -327,7 +333,18 @@ namespace Jellyfin.Plugin.GrpcFfmpeg
                 settings[key] = value;
             }
 
-            return RunAsync(path, arguments, settings);
+            return RunAsync(path, arguments, settings, stdin);
+        }
+
+        /// <summary>
+        /// Gets "H.264, HEVC, …; not: AV1" for the decoding tests.
+        /// </summary>
+        private static string DecodingSummary(ClassProbeResult probe)
+        {
+            var tests = ClassProbe.DecodeTests.Where(t => probe.DecodeTested!.Contains(t.Id)).ToList();
+            var decoded = tests.Where(t => probe.Decoders!.Contains(t.Id)).Select(t => t.Name).ToList();
+            var not = tests.Where(t => !probe.Decoders!.Contains(t.Id)).Select(t => t.Name).ToList();
+            return "Decodes " + string.Join(", ", decoded) + (not.Count > 0 ? "; not " + string.Join(", ", not) : string.Empty);
         }
 
         private static string CodecName(string codec) => codec switch
@@ -338,7 +355,7 @@ namespace Jellyfin.Plugin.GrpcFfmpeg
             _ => codec,
         };
 
-        private Task<CommandResult> RunClientAsync(string name, IEnumerable<string> arguments, Dictionary<string, string>? environment = null)
+        private Task<CommandResult> RunClientAsync(string name, IEnumerable<string> arguments, Dictionary<string, string>? environment = null, byte[]? stdin = null)
         {
             var settings = ConnectionEnvironment(_config);
             foreach (var (key, value) in environment ?? new Dictionary<string, string>())
@@ -346,10 +363,10 @@ namespace Jellyfin.Plugin.GrpcFfmpeg
                 settings[key] = value;
             }
 
-            return RunClientAsync(_deployDirectory, name, arguments, settings);
+            return RunClientAsync(_deployDirectory, name, arguments, settings, stdin);
         }
 
-        private static async Task<CommandResult> RunAsync(string path, IEnumerable<string> arguments, Dictionary<string, string> environment)
+        private static async Task<CommandResult> RunAsync(string path, IEnumerable<string> arguments, Dictionary<string, string> environment, byte[]? stdin = null)
         {
             var startInfo = new ProcessStartInfo(path)
             {
@@ -369,8 +386,10 @@ namespace Jellyfin.Plugin.GrpcFfmpeg
             }
 
             using var process = Process.Start(startInfo)!;
-            process.StandardInput.Close();
-            var stdout = process.StandardOutput.ReadToEndAsync();
+            var input = WriteInputAsync(process, stdin);
+            // Binary: e.g. a test clip the workers encode to stdout
+            var stdout = new MemoryStream();
+            var stdoutCopy = process.StandardOutput.BaseStream.CopyToAsync(stdout);
             var stderr = process.StandardError.ReadToEndAsync();
             using var timeout = new CancellationTokenSource(_commandTimeout);
             try
@@ -383,7 +402,36 @@ namespace Jellyfin.Plugin.GrpcFfmpeg
                 return new CommandResult(-1, string.Empty, $"No answer within {_commandTimeout.TotalSeconds} seconds");
             }
 
-            return new CommandResult(process.ExitCode, (await stdout.ConfigureAwait(false)).Trim(), (await stderr.ConfigureAwait(false)).Trim());
+            await stdoutCopy.ConfigureAwait(false);
+            await input.ConfigureAwait(false);
+            var data = stdout.ToArray();
+            return new CommandResult(process.ExitCode, System.Text.Encoding.UTF8.GetString(data).Trim(), (await stderr.ConfigureAwait(false)).Trim(), data);
+        }
+
+        private static async Task WriteInputAsync(Process process, byte[]? stdin)
+        {
+            try
+            {
+                if (stdin is not null)
+                {
+                    await process.StandardInput.BaseStream.WriteAsync(stdin).ConfigureAwait(false);
+                }
+            }
+            catch (IOException)
+            {
+                // The command exited without reading all of it, e.g. after the frames it needed
+            }
+            finally
+            {
+                try
+                {
+                    process.StandardInput.Close();
+                }
+                catch (IOException)
+                {
+                    // Already gone
+                }
+            }
         }
 
         private static int? MajorVersion(string versionOutput)
@@ -418,7 +466,8 @@ namespace Jellyfin.Plugin.GrpcFfmpeg
     /// <summary>
     /// Exit code and output of a command.
     /// </summary>
-    internal sealed record CommandResult(int ExitCode, string Output, string Error);
+    /// <param name="Data">Standard output as written.</param>
+    internal sealed record CommandResult(int ExitCode, string Output, string Error, byte[]? Data = null);
 
     /// <summary>
     /// Result of one check of the setup.
