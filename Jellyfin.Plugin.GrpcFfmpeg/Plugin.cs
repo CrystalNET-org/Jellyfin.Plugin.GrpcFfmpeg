@@ -35,6 +35,11 @@ namespace Jellyfin.Plugin.GrpcFfmpeg
 
             // Keep the deployed client in sync with this plugin version
             Prepare();
+
+            if (Configuration.EnableHardwareClasses && PluginServiceRegistrator.HardwareClassesUnavailable is { } reason)
+            {
+                _logger.LogError("gRPC-ffmpeg: hardware classes are unavailable with this Jellyfin version, all sessions use Jellyfin's settings: {Reason}", reason);
+            }
         }
 
         public static Plugin? Instance { get; private set; }

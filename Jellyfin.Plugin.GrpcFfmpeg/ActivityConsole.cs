@@ -99,6 +99,19 @@ namespace Jellyfin.Plugin.GrpcFfmpeg
             }
         }
 
+        /// <summary>
+        /// Adds a line of Jellyfin's own (e.g. a session's hardware class), formatted like the clients' lines.
+        /// </summary>
+        public static void AddServerLine(string message)
+        {
+            Add(string.Format(
+                System.Globalization.CultureInfo.InvariantCulture,
+                "{0:yyyy-MM-dd HH:mm:ss} [{1}] jellyfin {2}",
+                DateTime.UtcNow,
+                Environment.ProcessId,
+                message));
+        }
+
         private static void Add(string text)
         {
             lock (_lock)
@@ -127,6 +140,16 @@ namespace Jellyfin.Plugin.GrpcFfmpeg
             }
 
             var message = match.Groups["message"].Value;
+            if (HardwareClasses.HardwareClassContext.Active)
+            {
+                // "run [nvidia host:port]: …" from clients with CLASS_ADDRESSES, "run: …" otherwise
+                var run = RunRegex().Match(message);
+                if (run.Success)
+                {
+                    HardwareClasses.HardwareClassDiagnostics.ClientRun(run.Groups["class"].Success ? run.Groups["class"].Value : null);
+                }
+            }
+
             var fallback = FallbackRegex().Match(message);
             if (fallback.Success)
             {
@@ -247,6 +270,9 @@ namespace Jellyfin.Plugin.GrpcFfmpeg
         // "No worker reachable, running <path> locally"
         [GeneratedRegex(@"^(?:fallback \((?<reason>.*)\): running .+ locally|No worker reachable, running .+ locally)$")]
         private static partial Regex FallbackRegex();
+
+        [GeneratedRegex(@"^run(?: \[(?<class>\S+) [^\]]*\])?: ")]
+        private static partial Regex RunRegex();
     }
 
     /// <summary>

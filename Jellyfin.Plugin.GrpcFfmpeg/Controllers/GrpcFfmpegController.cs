@@ -21,13 +21,16 @@ namespace Jellyfin.Plugin.GrpcFfmpeg.Controllers
         private readonly IServerConfigurationManager _configurationManager;
         private readonly ILibraryManager _libraryManager;
         private readonly IConfiguration _startupConfig;
+        private readonly IServiceProvider _services;
 
         public GrpcFfmpegController(
             IMediaEncoder mediaEncoder,
             IServerConfigurationManager configurationManager,
             ILibraryManager libraryManager,
-            IConfiguration startupConfig)
+            IConfiguration startupConfig,
+            IServiceProvider services)
         {
+            _services = services;
             _mediaEncoder = mediaEncoder;
             _configurationManager = configurationManager;
             _libraryManager = libraryManager;
@@ -49,6 +52,7 @@ namespace Jellyfin.Plugin.GrpcFfmpeg.Controllers
 
             var clientPath = Relay.FfmpegPath(plugin.DeployDirectory);
             var active = string.Equals(_mediaEncoder.EncoderPath, clientPath, StringComparison.Ordinal);
+            var config = plugin.Configuration;
             return new
             {
                 plugin.DeployDirectory,
@@ -58,10 +62,60 @@ namespace Jellyfin.Plugin.GrpcFfmpeg.Controllers
                 plugin.Configuration.Enabled,
                 ActiveFfmpegPath = _mediaEncoder.EncoderPath,
                 Active = active,
-                RestartRequired = plugin.Configuration.Enabled != active,
+                RestartRequired = config.Enabled != active
+                    || ((config.Enabled && config.EnableHardwareClasses) != HardwareClasses.HardwareClassContext.Active
+                        && PluginServiceRegistrator.HardwareClassesUnavailable is null),
+                HardwareClassesActive = HardwareClasses.HardwareClassContext.Active,
+                HardwareClassesUnavailable = PluginServiceRegistrator.HardwareClassesUnavailable,
+                ClassAddresses = Relay.ClassAddresses(config, HardwareClasses.HardwareClassContext.Active),
+                HardwareClasses = HardwareClassStatus(config),
                 plugin.FallbackDirectory,
                 OverridingEnvironmentVariables = SetupCheck.OverridingEnvironmentVariables(),
                 Fallback = ActivityConsole.ActiveFallback(),
+            };
+        }
+
+        /// <summary>
+        /// Gets the hardware class counters and warnings, or null if hardware classes are off.
+        /// </summary>
+        private object? HardwareClassStatus(Configuration.PluginConfiguration config)
+        {
+            if (!HardwareClasses.HardwareClassContext.Active)
+            {
+                return null;
+            }
+
+            var selector = _services.GetService(typeof(HardwareClasses.SessionClassSelector)) as HardwareClasses.SessionClassSelector;
+            var enabled = config.HardwareClasses().Where(c => c.Address is not null).Select(c => c.Name).ToList();
+            // Never fail the status over Jellyfin's transcode manager
+            int Safe(Func<HardwareClasses.SessionClassSelector, int> count)
+            {
+                try
+                {
+                    return selector is null ? 0 : count(selector);
+                }
+                catch (Exception)
+                {
+                    return 0;
+                }
+            }
+
+            int Transcoding(string name) => Safe(s => s.TranscodingSessions(name));
+
+            return new
+            {
+                Classes = enabled.Select(name => new
+                {
+                    Name = name,
+                    Load = Safe(s => s.Load(name)),
+                    TranscodingSessions = Transcoding(name),
+                    RoutedCommands = HardwareClasses.HardwareClassDiagnostics.Routed(name),
+                }),
+                DefaultRoutedCommands = HardwareClasses.HardwareClassDiagnostics.Routed("default"),
+                HardwareClasses.HardwareClassDiagnostics.HlsRequests,
+                ClassResolutions = HardwareClasses.HardwareClassDiagnostics.Resolutions,
+                HardwareClasses.HardwareClassDiagnostics.Errors,
+                Warnings = HardwareClasses.HardwareClassDiagnostics.Warnings(Relay.ClassAddresses(config, HardwareClasses.HardwareClassContext.Active) is not null, enabled, Transcoding),
             };
         }
 

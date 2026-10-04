@@ -18,7 +18,7 @@ namespace Jellyfin.Plugin.GrpcFfmpeg
         public static readonly string[] ClientEnvironmentVariables =
         {
             "GRPC_FFMPEG_CONFIG", "GRPC_HOST", "GRPC_PORT", "AUTH_TOKEN", "USE_SSL", "CERTIFICATE_PATH",
-            "FALLBACK_DIR", "RETRIES", "CONNECT_TIMEOUT", "LOG_FILE",
+            "FALLBACK_DIR", "RETRIES", "CONNECT_TIMEOUT", "LOG_FILE", "CLASS_ADDRESSES",
         };
 
         private static readonly TimeSpan _commandTimeout = TimeSpan.FromSeconds(30);
@@ -77,6 +77,7 @@ namespace Jellyfin.Plugin.GrpcFfmpeg
                 await CheckDirectoryAsync("Temp directory (image extraction, trickplay)", () => _configurationManager.ApplicationPaths.TempDirectory).ConfigureAwait(false),
             };
             checks.AddRange(await CheckLibrariesAsync().ConfigureAwait(false));
+            checks.AddRange(await CheckHardwareClassesAsync().ConfigureAwait(false));
 
             return new TestResult(true, 0, version.Output, checks, warnings);
         }
@@ -119,7 +120,10 @@ namespace Jellyfin.Plugin.GrpcFfmpeg
         /// Has the workers copy a file Jellyfin wrote into the directory, and checks that the copy
         /// appears here: the directory must be shared, readable and writable for the workers.
         /// </summary>
-        private async Task<CheckResult> CheckDirectoryAsync(string name, Func<string> getDirectory)
+        /// <param name="name">Name of the check.</param>
+        /// <param name="getDirectory">Gets the directory.</param>
+        /// <param name="environment">Client settings for the workers to check, null for the default ones.</param>
+        private async Task<CheckResult> CheckDirectoryAsync(string name, Func<string> getDirectory, Dictionary<string, string>? environment = null)
         {
             string directory;
             try
@@ -140,7 +144,8 @@ namespace Jellyfin.Plugin.GrpcFfmpeg
                 await File.WriteAllBytesAsync(input, _png).ConfigureAwait(false);
                 var result = await RunClientAsync(
                     "ffmpeg",
-                    new[] { "-hide_banner", "-v", "error", "-i", input, "-frames:v", "1", "-update", "1", "-y", output }).ConfigureAwait(false);
+                    new[] { "-hide_banner", "-v", "error", "-i", input, "-frames:v", "1", "-update", "1", "-y", output },
+                    environment).ConfigureAwait(false);
                 if (result.ExitCode != 0)
                 {
                     var error = LastLine(result.Error);
@@ -188,7 +193,7 @@ namespace Jellyfin.Plugin.GrpcFfmpeg
             foreach (var folder in folders.Take(20))
             {
                 var name = $"Library \"{folder.Name}\"";
-                var file = (folder.Locations ?? Array.Empty<string>()).Select(FindMediaFile).FirstOrDefault(path => path is not null);
+                var file = FindMediaFile(folder);
                 if (file is null)
                 {
                     results.Add(new CheckResult(name, string.Join(", ", folder.Locations ?? Array.Empty<string>()), true, "Skipped: no media file found to check"));
@@ -203,6 +208,9 @@ namespace Jellyfin.Plugin.GrpcFfmpeg
 
             return results;
         }
+
+        private static string? FindMediaFile(MediaBrowser.Model.Entities.VirtualFolderInfo folder) =>
+            (folder.Locations ?? Array.Empty<string>()).Select(FindMediaFile).FirstOrDefault(path => path is not null);
 
         private static string? FindMediaFile(string location)
         {
@@ -219,11 +227,81 @@ namespace Jellyfin.Plugin.GrpcFfmpeg
             }
         }
 
-        private Task<CommandResult> RunClientAsync(string name, IEnumerable<string> arguments)
+        /// <summary>
+        /// Checks each enabled hardware class's workers like the default ones (experimental):
+        /// that they answer, share the transcode directory and can read the media, as they run
+        /// the transcodes of the class's sessions.
+        /// </summary>
+        private async Task<List<CheckResult>> CheckHardwareClassesAsync()
+        {
+            var results = new List<CheckResult>();
+            var config = Plugin.Instance?.Configuration;
+            if (config is null || !config.EnableHardwareClasses)
+            {
+                return results;
+            }
+
+            string? mediaFile = null;
+            try
+            {
+                mediaFile = _libraryManager.GetVirtualFolders().Take(20).Select(FindMediaFile).FirstOrDefault(path => path is not null);
+            }
+            catch (Exception)
+            {
+                // Reported by the library checks
+            }
+
+            foreach (var hardwareClass in config.HardwareClasses().Where(c => c.Enabled))
+            {
+                var name = $"Hardware class {hardwareClass.Name}";
+                if (hardwareClass.Address is null)
+                {
+                    results.Add(new CheckResult(name, hardwareClass.GrpcHost, false, hardwareClass.AddressError ?? "No valid host and port"));
+                    continue;
+                }
+
+                // The check commands have no hardware arguments, so they go to GRPC_HOST: point that at the class
+                var environment = new Dictionary<string, string>
+                {
+                    ["GRPC_HOST"] = hardwareClass.GrpcHost.Trim().Trim('[', ']'),
+                    ["GRPC_PORT"] = hardwareClass.GrpcPort.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                    ["CLASS_ADDRESSES"] = string.Empty,
+                };
+                var version = await RunClientAsync("ffmpeg", new[] { "-hide_banner", "-version" }, environment).ConfigureAwait(false);
+                if (version.ExitCode != 0)
+                {
+                    results.Add(new CheckResult(name, hardwareClass.Address, false, LastLine(version.Error)));
+                    continue;
+                }
+
+                results.Add(new CheckResult(name, hardwareClass.Address, true, version.Output.Split('\n')[0].Trim()));
+                results.Add(await CheckDirectoryAsync($"{name}: transcode directory", () => _configurationManager.GetTranscodePath(), environment).ConfigureAwait(false));
+                if (mediaFile is not null)
+                {
+                    var probe = await RunClientAsync(
+                        "ffprobe",
+                        new[] { "-hide_banner", "-v", "error", "-show_entries", "format=format_name", "-of", "csv=p=0", mediaFile },
+                        environment).ConfigureAwait(false);
+                    results.Add(probe.ExitCode == 0
+                        ? new CheckResult($"{name}: media", mediaFile, true, "Readable by the workers")
+                        : new CheckResult($"{name}: media", mediaFile, false, $"The workers cannot read it: {LastLine(probe.Error)}"));
+                }
+            }
+
+            return results;
+        }
+
+        private Task<CommandResult> RunClientAsync(string name, IEnumerable<string> arguments, Dictionary<string, string>? environment = null)
         {
             var path = Path.Combine(_deployDirectory, name + (OperatingSystem.IsWindows() ? ".exe" : string.Empty));
             // Test the workers themselves, not the fallback, and fail fast
-            return RunAsync(path, arguments, new Dictionary<string, string> { ["FALLBACK_DIR"] = string.Empty, ["RETRIES"] = "1" });
+            var settings = new Dictionary<string, string> { ["FALLBACK_DIR"] = string.Empty, ["RETRIES"] = "1" };
+            foreach (var (key, value) in environment ?? new Dictionary<string, string>())
+            {
+                settings[key] = value;
+            }
+
+            return RunAsync(path, arguments, settings);
         }
 
         private static async Task<CommandResult> RunAsync(string path, IEnumerable<string> arguments, Dictionary<string, string> environment)

@@ -1,0 +1,108 @@
+# End-to-end test of the plugin in real Jellyfin images, with three grpc-ffmpeg workers
+# (default, intel, nvidia) whose ffmpeg logs each command and runs hardware transcodes
+# in software (tests/integration/sim-ffmpeg.py), as there is no GPU in CI.
+#
+# Catches what unit tests cannot: Jellyfin no longer reading its transcoding settings
+# per request, changed hardware arguments, an embedded client that ignores
+# CLASS_ADDRESSES, the plugin failing to load. Releases depend on it
+# (auto_release.yaml), so a plugin that breaks this way is not shipped.
+#
+# All steps share the workspace at the same path, which stands in for the media,
+# transcode and temp directories that Jellyfin and the workers share in production.
+when:
+  # Other branches are tested through their pull request: a push there would run
+  # the same commit twice
+  - event: push
+    branch: ${CI_REPO_DEFAULT_BRANCH}
+  - event: [pull_request, manual, tag]
+
+matrix:
+  # Not updated by Renovate; add new Jellyfin releases here
+  JELLYFIN_IMAGE:
+    - harbor.crystalnet.org/dockerhub-proxy/jellyfin/jellyfin:10.11.11
+    - harbor.crystalnet.org/dockerhub-proxy/jellyfin/jellyfin:12.1
+
+steps:
+  - name: build
+    image: mcr.microsoft.com/dotnet/sdk:9.0
+    # Disk the step writes into its own container (not the workspace volume), so the
+    # scheduler accounts for it and the kubelet does not evict the step first
+    backend_options:
+      kubernetes:
+        resources:
+          requests:
+            ephemeral-storage: 1Gi
+    commands:
+      - dotnet build -c Release Jellyfin.Plugin.GrpcFfmpeg/Jellyfin.Plugin.GrpcFfmpeg.csproj
+
+  - name: prepare
+    image: ${JELLYFIN_IMAGE}
+    backend_options:
+      kubernetes:
+        resources:
+          requests:
+            ephemeral-storage: 512Mi
+    commands:
+      - ROOT=$${CI_WORKSPACE}/.integration PLUGIN_DLL=Jellyfin.Plugin.GrpcFfmpeg/bin/Release/net9.0/Jellyfin.Plugin.GrpcFfmpeg.dll sh tests/integration/prepare.sh
+
+  - name: worker-default
+    image: &worker ghcr.io/crystalnet-org/ffmpeg-worker:8.1.3-8.1
+    backend_options:
+      kubernetes:
+        resources:
+          requests:
+            ephemeral-storage: 512Mi
+    detach: true
+    environment: &worker-env
+      VALID_TOKEN: integration
+      HEALTHCHECK_INTERVAL: "3600"
+    commands: &worker-commands
+      - export SIM_LOG_DIR=$${CI_WORKSPACE}/.integration/logs BINARY_PATH_PREFIX=$${CI_WORKSPACE}/tests/integration/bin/
+      - export WORKER_NAME=$${CI_STEP_NAME#worker-}
+      - exec python3 /app/grpc-ffmpeg.py
+
+  - name: worker-intel
+    image: *worker
+    backend_options:
+      kubernetes:
+        resources:
+          requests:
+            ephemeral-storage: 512Mi
+    detach: true
+    environment: *worker-env
+    commands: *worker-commands
+
+  - name: worker-nvidia
+    image: *worker
+    backend_options:
+      kubernetes:
+        resources:
+          requests:
+            ephemeral-storage: 512Mi
+    detach: true
+    environment: *worker-env
+    commands: *worker-commands
+
+  - name: jellyfin
+    image: ${JELLYFIN_IMAGE}
+    backend_options:
+      kubernetes:
+        resources:
+          requests:
+            ephemeral-storage: 1Gi
+    detach: true
+    commands:
+      - ROOT=$${CI_WORKSPACE}/.integration exec sh tests/integration/start-jellyfin.sh
+
+  - name: check
+    image: harbor.crystalnet.org/dockerhub-proxy/library/python:3.14-slim
+    backend_options:
+      kubernetes:
+        resources:
+          requests:
+            ephemeral-storage: 256Mi
+    environment:
+      JELLYFIN_URL: http://jellyfin:8096
+    commands:
+      - export SIM_LOG_DIR=$${CI_WORKSPACE}/.integration/logs MEDIA_DIR=$${CI_WORKSPACE}/.integration/media
+      - python3 tests/integration/check.py || { echo "--- Jellyfin log"; tail -n 200 .integration/config/log/*.log; exit 1; }

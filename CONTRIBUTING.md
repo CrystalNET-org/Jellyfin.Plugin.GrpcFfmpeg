@@ -18,9 +18,12 @@ Jellyfin.Plugin.GrpcFfmpeg/
 │   ├── PluginServiceRegistrator.cs  # makes Jellyfin's MediaEncoder use the client
 │   ├── Relay.cs                     # unpacks the client, writes grpc-ffmpeg.conf
 │   ├── ActivityConsole.cs           # reads the clients' activity log for the console
+│   ├── HardwareClasses/             # experimental: per-session hardware classes
 │   ├── Controllers/                 # API for the settings page (status, console, test)
 │   ├── Configuration/               # plugin settings
 │   └── Web/config.html              # settings page
+├── Jellyfin.Plugin.GrpcFfmpeg.Tests/  # unit tests
+├── tests/integration/               # end-to-end test in real Jellyfin images (CI)
 ├── images/                          # catalog image and README screenshots
 ├── manifest.json                    # plugin repository file for Jellyfin
 ├── scripts/
@@ -39,6 +42,23 @@ dotnet build -c Release Jellyfin.Plugin.GrpcFfmpeg/Jellyfin.Plugin.GrpcFfmpeg.cs
 ```
 
 The output is `Jellyfin.Plugin.GrpcFfmpeg/bin/Release/net9.0/Jellyfin.Plugin.GrpcFfmpeg.dll`.
+
+Unit tests:
+
+```bash
+dotnet test Jellyfin.Plugin.GrpcFfmpeg.Tests
+```
+
+The integration test (`.woodpecker/integration.yaml`) runs the plugin in the official Jellyfin
+images (10.11 and 12.1) with three grpc-ffmpeg workers whose ffmpeg is
+`tests/integration/sim-ffmpeg.py`: it logs every command and runs hardware transcodes in
+software, as CI has no GPU. `tests/integration/check.py` then plays sessions through Jellyfin's
+API and checks which worker got which command, that seeks keep their class, that Jellyfin's
+settings are unchanged and that the plugin reports no warnings. It catches what unit tests
+cannot, such as a Jellyfin version that stops reading its settings per request, and releases
+depend on it. To run it elsewhere, follow the steps of the pipeline: `prepare.sh`, three
+workers with `BINARY_PATH_PREFIX` pointing at `tests/integration/bin/`, `start-jellyfin.sh`,
+then `check.py`; all of them must see `ROOT` at the same path.
 Copy it into a folder in Jellyfin's `plugins` directory and restart Jellyfin to try it.
 
 The plugin builds against the Jellyfin 10.11 packages, so one build runs on 10.11 and 12.x.
@@ -56,7 +76,8 @@ The pipelines in `.woodpecker/` run on [Woodpecker CI](https://woodpecker-ci.org
 
 | Pipeline | Runs on | Does |
 | --- | --- | --- |
-| `build.yaml` | pushes, pull requests, manual | Builds the plugin |
+| `build.yaml` | pushes to `main`, pull requests, manual | Builds the plugin and runs the unit tests |
+| `integration.yaml` | pushes to `main`, pull requests, manual, tags | End-to-end test in Jellyfin 10.11 and 12.1 (see above) |
 | `auto_release.yaml` | pushes to `main` that change the `.csproj` | Tags a patch release, after the build succeeded |
 | `release.yaml` | tags | Builds the release zip, publishes the GitHub release and updates `manifest.json` |
 | `renovate.yaml` | cron, manual | Runs Renovate |
