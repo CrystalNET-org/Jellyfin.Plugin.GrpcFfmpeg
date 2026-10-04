@@ -9,6 +9,13 @@ when:
 steps:
   - name: package
     image: mcr.microsoft.com/dotnet/sdk:9.0
+    # Disk the step writes into its own container (not the workspace volume), so the
+    # scheduler accounts for it and the kubelet does not evict the step first
+    backend_options:
+      kubernetes:
+        resources:
+          requests:
+            ephemeral-storage: 1Gi
     environment:
       TARGET_ABI: "10.11.0.0"
     commands:
@@ -30,6 +37,11 @@ steps:
 
   - name: publish-release
     image: harbor.crystalnet.org/dockerhub-proxy/woodpeckerci/plugin-release:0.3.2
+    backend_options:
+      kubernetes:
+        resources:
+          requests:
+            ephemeral-storage: 256Mi
     settings:
       files:
         - artifacts/*.zip
@@ -39,6 +51,11 @@ steps:
 
   - name: update-manifest
     image: harbor.crystalnet.org/dockerhub-proxy/library/python:3.14-slim
+    backend_options:
+      kubernetes:
+        resources:
+          requests:
+            ephemeral-storage: 512Mi
     environment:
       GITHUB_TOKEN:
         from_secret: GITHUB_TOKEN

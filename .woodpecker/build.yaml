@@ -4,6 +4,13 @@ when:
 steps:
   - name: build
     image: mcr.microsoft.com/dotnet/sdk:9.0
+    # Disk the step writes into its own container (not the workspace volume), so the
+    # scheduler accounts for it and the kubelet does not evict the step first
+    backend_options:
+      kubernetes:
+        resources:
+          requests:
+            ephemeral-storage: 1Gi
     commands:
       - dotnet build -c Release Jellyfin.Plugin.GrpcFfmpeg/Jellyfin.Plugin.GrpcFfmpeg.csproj
       - dotnet test Jellyfin.Plugin.GrpcFfmpeg.Tests

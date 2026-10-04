@@ -21,16 +21,33 @@ matrix:
 steps:
   - name: build
     image: mcr.microsoft.com/dotnet/sdk:9.0
+    # Disk the step writes into its own container (not the workspace volume), so the
+    # scheduler accounts for it and the kubelet does not evict the step first
+    backend_options:
+      kubernetes:
+        resources:
+          requests:
+            ephemeral-storage: 1Gi
     commands:
       - dotnet build -c Release Jellyfin.Plugin.GrpcFfmpeg/Jellyfin.Plugin.GrpcFfmpeg.csproj
 
   - name: prepare
     image: ${JELLYFIN_IMAGE}
+    backend_options:
+      kubernetes:
+        resources:
+          requests:
+            ephemeral-storage: 512Mi
     commands:
       - ROOT=$${CI_WORKSPACE}/.integration PLUGIN_DLL=Jellyfin.Plugin.GrpcFfmpeg/bin/Release/net9.0/Jellyfin.Plugin.GrpcFfmpeg.dll sh tests/integration/prepare.sh
 
   - name: worker-default
     image: &worker ghcr.io/crystalnet-org/ffmpeg-worker:8.1.3-7.10
+    backend_options:
+      kubernetes:
+        resources:
+          requests:
+            ephemeral-storage: 512Mi
     detach: true
     environment: &worker-env
       VALID_TOKEN: integration
@@ -42,24 +59,44 @@ steps:
 
   - name: worker-intel
     image: *worker
+    backend_options:
+      kubernetes:
+        resources:
+          requests:
+            ephemeral-storage: 512Mi
     detach: true
     environment: *worker-env
     commands: *worker-commands
 
   - name: worker-nvidia
     image: *worker
+    backend_options:
+      kubernetes:
+        resources:
+          requests:
+            ephemeral-storage: 512Mi
     detach: true
     environment: *worker-env
     commands: *worker-commands
 
   - name: jellyfin
     image: ${JELLYFIN_IMAGE}
+    backend_options:
+      kubernetes:
+        resources:
+          requests:
+            ephemeral-storage: 1Gi
     detach: true
     commands:
       - ROOT=$${CI_WORKSPACE}/.integration exec sh tests/integration/start-jellyfin.sh
 
   - name: check
     image: harbor.crystalnet.org/dockerhub-proxy/library/python:3.14-slim
+    backend_options:
+      kubernetes:
+        resources:
+          requests:
+            ephemeral-storage: 256Mi
     environment:
       JELLYFIN_URL: http://jellyfin:8096
     commands:
