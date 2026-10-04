@@ -7,11 +7,18 @@ namespace Jellyfin.Plugin.GrpcFfmpeg.HardwareClasses
     /// Jellyfin first reads the transcoding settings for it (inside the controller, after
     /// authentication), and then kept for the rest of the request.
     /// </summary>
+    /// <remarks>
+    /// The request flows into everything started while it is handled. That includes the
+    /// ffmpeg process and the tasks following its output, which should see the class, but
+    /// could also be a timer some service happens to create then. So once the request has
+    /// ended, the class only applies while the session's transcode runs.
+    /// </remarks>
     internal sealed class StreamRequest
     {
         private readonly object _lock = new();
         private readonly SessionClassSelector? _selector;
         private bool _resolved;
+        private volatile bool _completed;
         private HardwareClassSettings? _class;
 
         public StreamRequest(
@@ -40,10 +47,20 @@ namespace Jellyfin.Plugin.GrpcFfmpeg.HardwareClasses
         public IReadOnlyList<string> RequestedVideoCodecs { get; }
 
         /// <summary>
+        /// Marks the request as handled.
+        /// </summary>
+        public void Complete() => _completed = true;
+
+        /// <summary>
         /// Gets the session's class, choosing it on first use.
         /// </summary>
         public HardwareClassSettings? Resolve()
         {
+            if (_completed)
+            {
+                return ResolveAfterRequest();
+            }
+
             lock (_lock)
             {
                 if (!_resolved)
@@ -64,6 +81,26 @@ namespace Jellyfin.Plugin.GrpcFfmpeg.HardwareClasses
                 }
 
                 return _class;
+            }
+        }
+
+        private HardwareClassSettings? ResolveAfterRequest()
+        {
+            HardwareClassSettings? hardwareClass;
+            lock (_lock)
+            {
+                // Never chosen after the request
+                hardwareClass = _class;
+            }
+
+            try
+            {
+                return hardwareClass is not null && _selector?.IsTranscoding(PlaySessionId) == true ? hardwareClass : null;
+            }
+            catch (Exception ex)
+            {
+                HardwareClassDiagnostics.Error("checking the session's transcode", ex);
+                return null;
             }
         }
     }

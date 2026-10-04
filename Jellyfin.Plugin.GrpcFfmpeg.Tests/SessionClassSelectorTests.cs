@@ -289,11 +289,84 @@ namespace Jellyfin.Plugin.GrpcFfmpeg.Tests
         public void ClassAddressesForClient()
         {
             _config.NvidiaClass.GrpcPort = 50052;
-            Assert.Equal("intel=ffmpeg-workers-intel:50051;nvidia=ffmpeg-workers-nvidia:50052", Relay.ClassAddresses(_config));
+            Assert.Equal("intel=ffmpeg-workers-intel:50051;nvidia=ffmpeg-workers-nvidia:50052", Relay.ClassAddresses(_config, active: true));
             _config.NvidiaClass.GrpcHost = "fd00::1";
-            Assert.Equal("intel=ffmpeg-workers-intel:50051;nvidia=[fd00::1]:50052", Relay.ClassAddresses(_config));
+            Assert.Equal("intel=ffmpeg-workers-intel:50051;nvidia=[fd00::1]:50052", Relay.ClassAddresses(_config, active: true));
+            _config.NvidiaClass.GrpcHost = "[fd00::1]";
+            Assert.Equal("intel=ffmpeg-workers-intel:50051;nvidia=[fd00::1]:50052", Relay.ClassAddresses(_config, active: true));
+        }
+
+        [Fact]
+        public void ClassAddressesFollowStartupNotTheSwitch()
+        {
+            // Switched on without a restart: Jellyfin does not use the classes yet
+            Assert.Null(Relay.ClassAddresses(_config, active: false));
+            // Switched off without a restart: sessions may still run with class settings
             _config.EnableHardwareClasses = false;
-            Assert.Null(Relay.ClassAddresses(_config));
+            Assert.NotNull(Relay.ClassAddresses(_config, active: true));
+        }
+
+        [Theory]
+        [InlineData("workers:50051", "must not contain a port")]
+        [InlineData("[fd00::1]:50051", "must not contain a port")]
+        [InlineData("", "No host")]
+        [InlineData("a b", "invalid characters")]
+        [InlineData("a;b", "invalid characters")]
+        public void RejectsInvalidClassHosts(string host, string error)
+        {
+            _config.IntelClass.GrpcHost = host;
+            Assert.Contains(error, _config.IntelClass.AddressError, StringComparison.Ordinal);
+            Assert.Null(_config.IntelClass.Address);
+            Assert.Equal("nvidia=ffmpeg-workers-nvidia:50051", Relay.ClassAddresses(_config, active: true));
+        }
+
+        [Fact]
+        public void ClassNamesComeFromTheirSetting()
+        {
+            // As read from an edited or old settings file
+            _config.IntelClass.Name = string.Empty;
+            _config.NvidiaClass.Name = "intel";
+            _config.IntelClass = null!;
+            Assert.Equal(new[] { "intel", "nvidia" }, _config.HardwareClasses().Select(c => c.Name));
+            Assert.Equal("ffmpeg-workers-intel", _config.IntelClass.GrpcHost);
+            Assert.Equal(MediaBrowser.Model.Entities.HardwareAccelerationType.nvenc, _config.NvidiaClass.AccelerationType);
+        }
+
+        [Fact]
+        public void SessionOnJellyfinSettingsGetsClassOnceUsable()
+        {
+            _config.IntelClass.Enabled = false;
+            _config.NvidiaClass.Enabled = false;
+            var selector = Create();
+            Assert.Null(Select(selector, "a"));
+            _config.NvidiaClass.Enabled = true;
+            // Not while its transcode runs
+            _transcoding.Add("a");
+            Assert.Null(Select(selector, "a"));
+            _transcoding.Remove("a");
+            Assert.Equal("nvidia", Select(selector, "a"));
+            Assert.Equal("nvidia", Select(selector, "a"));
+        }
+
+        [Fact]
+        public void ClassAppliesAfterTheRequestOnlyWhileTheSessionTranscodes()
+        {
+            var selector = Create();
+            var request = Request("a", selector);
+            Assert.Equal("intel", request.Resolve()?.Name);
+            request.Complete();
+            // e.g. a timer created during the request
+            Assert.Null(request.Resolve());
+            _transcoding.Add("a");
+            // e.g. the tasks following the output of the ffmpeg process started for it
+            Assert.Equal("intel", request.Resolve()?.Name);
+
+            // Never chosen after the request
+            var late = Request("b", selector);
+            late.Complete();
+            _transcoding.Add("b");
+            Assert.Null(late.Resolve());
+            Assert.Equal(1, selector.Count);
         }
     }
 }

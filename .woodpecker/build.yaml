@@ -1,5 +1,9 @@
 when:
-  - event: [push, pull_request, manual]
+  # Other branches are tested through their pull request: a push there would run
+  # the same commit twice
+  - event: push
+    branch: ${CI_REPO_DEFAULT_BRANCH}
+  - event: [pull_request, manual]
 
 steps:
   - name: build

@@ -76,8 +76,8 @@ The pipelines in `.woodpecker/` run on [Woodpecker CI](https://woodpecker-ci.org
 
 | Pipeline | Runs on | Does |
 | --- | --- | --- |
-| `build.yaml` | pushes, pull requests, manual | Builds the plugin and runs the unit tests |
-| `integration.yaml` | pushes, pull requests, manual, tags | End-to-end test in Jellyfin 10.11 and 12.1 (see above) |
+| `build.yaml` | pushes to `main`, pull requests, manual | Builds the plugin and runs the unit tests |
+| `integration.yaml` | pushes to `main`, pull requests, manual, tags | End-to-end test in Jellyfin 10.11 and 12.1 (see above) |
 | `auto_release.yaml` | pushes to `main` that change the `.csproj` | Tags a patch release, after the build succeeded |
 | `release.yaml` | tags | Builds the release zip, publishes the GitHub release and updates `manifest.json` |
 | `renovate.yaml` | cron, manual | Runs Renovate |

@@ -10,7 +10,11 @@
 # All steps share the workspace at the same path, which stands in for the media,
 # transcode and temp directories that Jellyfin and the workers share in production.
 when:
-  - event: [push, pull_request, manual, tag]
+  # Other branches are tested through their pull request: a push there would run
+  # the same commit twice
+  - event: push
+    branch: ${CI_REPO_DEFAULT_BRANCH}
+  - event: [pull_request, manual, tag]
 
 matrix:
   # Not updated by Renovate; add new Jellyfin releases here

@@ -67,7 +67,7 @@ namespace Jellyfin.Plugin.GrpcFfmpeg.Controllers
                         && PluginServiceRegistrator.HardwareClassesUnavailable is null),
                 HardwareClassesActive = HardwareClasses.HardwareClassContext.Active,
                 HardwareClassesUnavailable = PluginServiceRegistrator.HardwareClassesUnavailable,
-                ClassAddresses = Relay.ClassAddresses(config),
+                ClassAddresses = Relay.ClassAddresses(config, HardwareClasses.HardwareClassContext.Active),
                 HardwareClasses = HardwareClassStatus(config),
                 plugin.FallbackDirectory,
                 OverridingEnvironmentVariables = SetupCheck.OverridingEnvironmentVariables(),
@@ -115,7 +115,7 @@ namespace Jellyfin.Plugin.GrpcFfmpeg.Controllers
                 HardwareClasses.HardwareClassDiagnostics.HlsRequests,
                 ClassResolutions = HardwareClasses.HardwareClassDiagnostics.Resolutions,
                 HardwareClasses.HardwareClassDiagnostics.Errors,
-                Warnings = HardwareClasses.HardwareClassDiagnostics.Warnings(Relay.ClassAddresses(config) is not null, enabled, Transcoding),
+                Warnings = HardwareClasses.HardwareClassDiagnostics.Warnings(Relay.ClassAddresses(config, HardwareClasses.HardwareClassContext.Active) is not null, enabled, Transcoding),
             };
         }
 

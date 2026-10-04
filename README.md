@@ -121,13 +121,18 @@ behind its own address:
 
   Other policies: take turns, a fixed class, or none. The session keeps its class for seeks
   and later segments (remembered for 6 hours of inactivity). It only moves when its class's
-  workers are unreachable and it has no running transcode, e.g. when the player retries.
+  workers are unreachable and it has no running transcode, e.g. when the player retries. A
+  session that got Jellyfin's own settings because no class was usable gets a class the same
+  way, once one is.
 - During that session's streaming requests, Jellyfin sees its transcoding settings with the
   class's hardware acceleration type, decoding codecs, tone mapping and HEVC/AV1 encoding
   settings. Jellyfin's saved settings are not changed.
 - The client sends each command to the pool its hardware arguments need (`CLASS_ADDRESSES`).
   Everything else, such as startup checks, library scans, trickplay and image extraction, uses
-  Jellyfin's own settings and the worker above.
+  Jellyfin's own settings and the worker above. Like the switch itself, the addresses only
+  change with a restart.
+- **Save and test connection** also checks each enabled class's workers: that they answer,
+  share the transcode directory and can read the media.
 
 Limitations: only QSV and NVENC (no VAAPI/AMD classes). Jellyfin's dashboard still shows its
 global settings. Unreachable workers are only noticed through failed commands (with the

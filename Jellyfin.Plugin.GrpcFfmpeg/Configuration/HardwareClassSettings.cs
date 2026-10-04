@@ -65,14 +65,44 @@ namespace Jellyfin.Plugin.GrpcFfmpeg.Configuration
             Name == Nvidia ? HardwareAccelerationType.nvenc : HardwareAccelerationType.qsv;
 
         /// <summary>
+        /// Gets what is wrong with the host and port, or null if they are valid.
+        /// </summary>
+        public string? AddressError
+        {
+            get
+            {
+                var host = (GrpcHost ?? string.Empty).Trim();
+                if (host.Length == 0)
+                {
+                    return "No host set";
+                }
+
+                if (GrpcPort is <= 0 or >= 65536)
+                {
+                    return "The port must be between 1 and 65535";
+                }
+
+                // One colon is a host with a port ("workers:50051"), two or more an IPv6 address
+                if (host.Count(c => c == ':') == 1 || (host.StartsWith('[') != host.EndsWith(']')))
+                {
+                    return "The host must not contain a port; set it in the port field";
+                }
+
+                return host.Any(c => char.IsWhiteSpace(c) || c is ';' or ',' or '=' or '/')
+                    ? "The host contains invalid characters"
+                    : null;
+            }
+        }
+
+        /// <summary>
         /// Gets the address of the class's workers, or null if the class cannot be used.
         /// </summary>
         public string? Address
         {
             get
             {
-                var host = GrpcHost.Trim();
-                if (!Enabled || host.Length == 0 || GrpcPort is <= 0 or >= 65536)
+                var host = (GrpcHost ?? string.Empty).Trim();
+                if (!Enabled || AddressError is not null)
                 {
                     return null;
                 }

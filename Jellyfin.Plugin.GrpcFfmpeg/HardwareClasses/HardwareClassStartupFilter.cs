@@ -71,9 +71,10 @@ namespace Jellyfin.Plugin.GrpcFfmpeg.HardwareClasses
             {
                 app.Use(async (context, nextMiddleware) =>
                 {
+                    StreamRequest? request = null;
                     try
                     {
-                        var request = ParseStreamRequest(context.Request.Path, context.Request.Query, _selector);
+                        request = ParseStreamRequest(context.Request.Path, context.Request.Query, _selector);
                         if (request is not null)
                         {
                             HardwareClassDiagnostics.StreamingRequest(context.Request.Path.Value ?? string.Empty);
@@ -85,7 +86,14 @@ namespace Jellyfin.Plugin.GrpcFfmpeg.HardwareClasses
                         HardwareClassDiagnostics.Error("reading the streaming request", ex);
                     }
 
-                    await nextMiddleware().ConfigureAwait(false);
+                    try
+                    {
+                        await nextMiddleware().ConfigureAwait(false);
+                    }
+                    finally
+                    {
+                        request?.Complete();
+                    }
                 });
                 next(app);
             };

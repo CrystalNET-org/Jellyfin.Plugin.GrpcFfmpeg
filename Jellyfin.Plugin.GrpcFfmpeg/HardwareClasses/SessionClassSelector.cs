@@ -81,20 +81,32 @@ namespace Jellyfin.Plugin.GrpcFfmpeg.HardwareClasses
             string reason;
             lock (_lock)
             {
-                if (_sessions.TryGetValue(request.PlaySessionId, out var existing))
+                _sessions.TryGetValue(request.PlaySessionId, out var existing);
+                if (existing is { ClassName: null })
                 {
-                    var current = Usable(config).FirstOrDefault(c => c.Name == existing.ClassName);
-                    // Keep the class unless its workers went down and nothing is running
-                    // for the session, i.e. it is starting over (or its transcode failed)
-                    if (existing.ClassName is null
-                        || (current is not null && !(_isUnreachable(current) && !_isTranscoding(request.PlaySessionId))))
+                    // Jellyfin's settings, e.g. as no class was usable: choose again once
+                    // nothing runs for the session, as a class may be usable by now
+                    (chosen, reason) = _isTranscoding(request.PlaySessionId) ? (null, string.Empty) : Choose(config, request, now);
+                    if (chosen is null)
                     {
                         _sessions[request.PlaySessionId] = existing with { LastSeen = now };
-                        return current;
+                        return null;
                     }
                 }
+                else
+                {
+                    var current = existing is null ? null : Usable(config).FirstOrDefault(c => c.Name == existing.ClassName);
+                    // Keep the class unless its workers went down and nothing is running
+                    // for the session, i.e. it is starting over (or its transcode failed)
+                    if (current is not null && !(_isUnreachable(current) && !_isTranscoding(request.PlaySessionId)))
+                    {
+                        _sessions[request.PlaySessionId] = existing! with { LastSeen = now };
+                        return current;
+                    }
 
-                (chosen, reason) = Choose(config, request, now);
+                    (chosen, reason) = Choose(config, request, now);
+                }
+
                 _sessions[request.PlaySessionId] = new Assignment(chosen?.Name, now, now);
             }
 
@@ -111,6 +123,11 @@ namespace Jellyfin.Plugin.GrpcFfmpeg.HardwareClasses
             return _sessions.Count(pair => pair.Value.ClassName == className
                 && (now - pair.Value.AssignedAt < StartingWindow || _isTranscoding(pair.Key)));
         }
+
+        /// <summary>
+        /// Gets whether Jellyfin runs a transcode for the playback session.
+        /// </summary>
+        public bool IsTranscoding(string playSessionId) => _isTranscoding(playSessionId);
 
         /// <summary>
         /// Gets the number of the class's sessions with a running transcode.

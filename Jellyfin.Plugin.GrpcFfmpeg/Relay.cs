@@ -238,9 +238,16 @@ namespace Jellyfin.Plugin.GrpcFfmpeg
         /// if hardware classes are off. The client sends each command to the workers of the
         /// class its hardware arguments need, and everything else to GRPC_HOST.
         /// </summary>
-        public static string? ClassAddresses(PluginConfiguration config)
+        /// <param name="config">The plugin settings.</param>
+        /// <param name="active">
+        /// Whether hardware classes were enabled at startup. The switch takes effect on a
+        /// restart, so routing follows it then too: written right away, the addresses would
+        /// route commands to classes Jellyfin does not use yet, or stop routing those of
+        /// sessions it still runs with class settings.
+        /// </param>
+        public static string? ClassAddresses(PluginConfiguration config, bool active)
         {
-            if (!config.EnableHardwareClasses)
+            if (!active)
             {
                 return null;
             }
@@ -265,7 +272,7 @@ namespace Jellyfin.Plugin.GrpcFfmpeg
                 ("CONNECT_TIMEOUT", Math.Max(1, config.ConnectTimeout).ToString(System.Globalization.CultureInfo.InvariantCulture)),
                 ("FALLBACK_DIR", fallbackDirectory),
                 ("LOG_FILE", ActivityConsole.LogTarget(directory)),
-                ("CLASS_ADDRESSES", ClassAddresses(config)),
+                ("CLASS_ADDRESSES", ClassAddresses(config, HardwareClasses.HardwareClassContext.Active)),
             };
 
             var text = new StringBuilder("# Written by the Jellyfin gRPC-ffmpeg plugin; changes here are overwritten.\n");

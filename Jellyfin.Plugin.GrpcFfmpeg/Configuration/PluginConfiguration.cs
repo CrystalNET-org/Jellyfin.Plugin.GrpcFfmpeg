@@ -64,6 +64,18 @@ namespace Jellyfin.Plugin.GrpcFfmpeg.Configuration
 
         public HardwareClassSettings NvidiaClass { get; set; } = new() { Name = HardwareClassSettings.Nvidia, GrpcHost = "ffmpeg-workers-nvidia" };
 
-        public IEnumerable<HardwareClassSettings> HardwareClasses() => new[] { IntelClass, NvidiaClass };
+        /// <summary>
+        /// Gets the hardware classes. Each one's name comes from its setting, whatever the
+        /// saved file says: the name selects the class's hardware arguments and its entry in
+        /// CLASS_ADDRESSES, so an edited or missing one must not break routing.
+        /// </summary>
+        public IEnumerable<HardwareClassSettings> HardwareClasses()
+        {
+            IntelClass ??= new() { GrpcHost = "ffmpeg-workers-intel" };
+            NvidiaClass ??= new() { GrpcHost = "ffmpeg-workers-nvidia" };
+            IntelClass.Name = HardwareClassSettings.Intel;
+            NvidiaClass.Name = HardwareClassSettings.Nvidia;
+            return new[] { IntelClass, NvidiaClass };
+        }
     }
 }
