@@ -34,15 +34,20 @@ environment variables and no change to Jellyfin's ffmpeg path are needed.
 
 ## Screenshots
 
-The settings page, with a passing setup test: the workers are reachable and share Jellyfin's
+The settings page, with a passing test of the workers: they are reachable and share Jellyfin's
 directories.
 
-![Settings page with the worker settings and a passing setup test](images/settings.png)
+![Settings page with the worker settings and a passing test](images/settings.png)
 
-The console lists every command run through the workers, here a library scan's probe, an
-image extraction and a transcode:
+With the experimental hardware classes, each kind of GPU has its own section: its workers'
+status, the codecs detected on their GPUs, and a test.
 
-![Console with ffprobe, image extraction and transcode commands](images/console.png)
+![NVIDIA NVENC section with the workers' status, detected codecs and a passing test](images/hardware-classes.png)
+
+The console lists every command run through the workers, here playback sessions that each got
+a hardware class, and their transcodes on that class's workers:
+
+![Console with playback sessions and their transcodes on the Intel and NVIDIA workers](images/console.png)
 
 ## Requirements
 
