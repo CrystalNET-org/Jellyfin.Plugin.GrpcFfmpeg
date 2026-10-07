@@ -50,7 +50,7 @@ dotnet test Jellyfin.Plugin.GrpcFfmpeg.Tests
 ```
 
 The integration test (`.woodpecker/integration.yaml`) runs the plugin in the official Jellyfin
-images (10.11 and 12.1) with three grpc-ffmpeg workers whose ffmpeg is
+images (10.11, 12.1 and 12.2) with three grpc-ffmpeg workers whose ffmpeg is
 `tests/integration/sim-ffmpeg.py`: it logs every command and runs hardware transcodes in
 software, as CI has no GPU. `tests/integration/check.py` then plays sessions through Jellyfin's
 API and checks which worker got which command, that seeks keep their class, that Jellyfin's
@@ -77,7 +77,7 @@ The pipelines in `.woodpecker/` run on [Woodpecker CI](https://woodpecker-ci.org
 | Pipeline | Runs on | Does |
 | --- | --- | --- |
 | `build.yaml` | pushes to `main`, pull requests, manual | Builds the plugin and runs the unit tests |
-| `integration.yaml` | pushes to `main`, pull requests, manual, tags | End-to-end test in Jellyfin 10.11 and 12.1 (see above) |
+| `integration.yaml` | pushes to `main`, pull requests, manual, tags | End-to-end test in Jellyfin 10.11, 12.1 and 12.2 (see above) |
 | `auto_release.yaml` | pushes to `main` that change the `.csproj` | Tags a patch release, after the build succeeded |
 | `release.yaml` | tags | Builds the release zip, publishes the GitHub release and updates `manifest.json` |
 | `renovate.yaml` | cron, manual | Runs Renovate |

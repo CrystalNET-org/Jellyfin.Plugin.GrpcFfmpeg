@@ -21,6 +21,7 @@ matrix:
   JELLYFIN_IMAGE:
     - harbor.crystalnet.org/dockerhub-proxy/jellyfin/jellyfin:10.11.11
     - harbor.crystalnet.org/dockerhub-proxy/jellyfin/jellyfin:12.1
+    - harbor.crystalnet.org/dockerhub-proxy/jellyfin/jellyfin:12.2
 
 steps:
   - name: build

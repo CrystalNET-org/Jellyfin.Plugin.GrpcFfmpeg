@@ -7,183 +7,203 @@
     <div id="grpcFfmpegConfigPage" data-role="page" class="page type-interior pluginConfigurationPage"
          data-require="emby-input,emby-button,emby-checkbox,emby-select">
         <div data-role="content">
-            <div class="content-primary">
-                <form class="grpcFfmpegConfigurationForm">
-                    <div class="sectionTitleContainer flex align-items-center">
-                        <h2 class="sectionTitle">gRPC-ffmpeg</h2>
-                    </div>
-                    <p>Runs Jellyfin's ffmpeg and ffprobe commands on remote
-                        <a is="emby-linkbutton" class="button-link" href="https://github.com/CrystalNET-org/grpc-ffmpeg" target="_blank">grpc-ffmpeg</a>
-                        workers. The media library and Jellyfin's transcode, cache and temp directories must be available at the same paths on Jellyfin and on the workers; <em>Test</em> checks them.</p>
+        <style>
+            /* Layout like Intro Skipper's: header, section navigation on the left, the
+               current section on the right, and a save bar that stays at the bottom */
+            /* Jellyfin clips the page content with overflow: hidden, which makes it a scroll
+               container of its own and keeps the save bar from sticking; clip does not */
+            #grpcFfmpegConfigPage > [data-role="content"] {
+                overflow: clip;
+            }
+            #grpcFfmpegConfigPage form.gfShell {
+                /* Full width, instead of Jellyfin's narrow column for plugin forms */
+                max-width: none;
+                display: grid;
+                grid-template-columns: 200px minmax(0, 1fr);
+                grid-template-rows: auto 1fr auto;
+                /* Down to the window's bottom edge below Jellyfin's top bar */
+                min-height: calc(100vh - 3.5em);
+            }
+            #grpcFfmpegConfigPage .gfHeader {
+                grid-column: 1 / -1;
+                display: flex;
+                align-items: center;
+                gap: 1em;
+                padding: 0.5em 2em 0.75em;
+                border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            }
+            #grpcFfmpegConfigPage .gfHeader h2 {
+                margin: 0;
+            }
+            #grpcFfmpegConfigPage .gfChip {
+                font-size: 0.8em;
+                padding: 0.2em 0.7em;
+                border-radius: 1em;
+                background: rgba(255, 255, 255, 0.08);
+                white-space: nowrap;
+            }
+            #grpcFfmpegConfigPage .gfChip[data-state="ok"] { color: #8c8; }
+            #grpcFfmpegConfigPage .gfChip[data-state="warn"] { color: #fc6; }
+            #grpcFfmpegConfigPage .gfChip[data-state="error"] { color: #f77; }
+            #grpcFfmpegConfigPage .gfNav {
+                display: flex;
+                flex-direction: column;
+                gap: 2px;
+                padding: 0.75em 0.5em;
+                border-right: 1px solid rgba(255, 255, 255, 0.1);
+            }
+            #grpcFfmpegConfigPage .gfNavButton {
+                display: block;
+                width: 100%;
+                text-align: left;
+                padding: 0.65em 1em;
+                border: none;
+                border-radius: 4px;
+                background: transparent;
+                color: inherit;
+                font: inherit;
+                font-size: 0.95em;
+                cursor: pointer;
+            }
+            /* The hidden attribute loses against the display above */
+            #grpcFfmpegConfigPage .gfNavButton[hidden],
+            #grpcFfmpegConfigPage .gfSection[hidden] {
+                display: none;
+            }
+            #grpcFfmpegConfigPage .gfNavButton:hover {
+                background: rgba(255, 255, 255, 0.05);
+            }
+            #grpcFfmpegConfigPage .gfNavButton.gfActive {
+                background: color-mix(in srgb, var(--theme-primary-color, #00a4dc) 15%, transparent);
+                color: var(--theme-primary-color, #00a4dc);
+                font-weight: 600;
+            }
+            #grpcFfmpegConfigPage .gfNavButton.gfSub {
+                padding-left: 2em;
+            }
+            #grpcFfmpegConfigPage .gfContent {
+                padding: 1em 2em 2em;
+                min-width: 0;
+            }
+            #grpcFfmpegConfigPage .gfSection > .sectionTitle {
+                margin-top: 0;
+            }
+            #grpcFfmpegConfigPage .gfFooter {
+                grid-column: 1 / -1;
+                position: sticky;
+                bottom: 0;
+                z-index: 10;
+                display: flex;
+                align-items: center;
+                justify-content: flex-end;
+                gap: 1em;
+                padding: 0.75em 2em;
+                border-top: 1px solid rgba(255, 255, 255, 0.1);
+                background: var(--theme-background, #101010);
+            }
+            #grpcFfmpegConfigPage .gfFooterMessage {
+                margin-right: auto;
+                font-size: 0.9em;
+                opacity: 0.8;
+            }
+            #grpcFfmpegConfigPage .gfFooterMessage[data-state="dirty"] { color: #fc6; opacity: 1; }
+            #grpcFfmpegConfigPage .gfFooterMessage[data-state="ok"] { color: #8c8; opacity: 1; }
+            #grpcFfmpegConfigPage .gfFooterMessage[data-state="error"] { color: #f77; opacity: 1; }
+            #grpcFfmpegConfigPage .gfFooter .gfSave {
+                margin: 0;
+                min-width: 10em;
+            }
+            @media (max-width: 768px) {
+                #grpcFfmpegConfigPage form.gfShell {
+                    grid-template-columns: minmax(0, 1fr);
+                    grid-template-rows: auto auto 1fr auto;
+                }
+                #grpcFfmpegConfigPage .gfHeader,
+                #grpcFfmpegConfigPage .gfContent,
+                #grpcFfmpegConfigPage .gfFooter {
+                    padding-left: 1em;
+                    padding-right: 1em;
+                }
+                #grpcFfmpegConfigPage .gfNav {
+                    flex-direction: row;
+                    overflow-x: auto;
+                    border-right: none;
+                    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+                    white-space: nowrap;
+                }
+                #grpcFfmpegConfigPage .gfNavButton {
+                    width: auto;
+                }
+                #grpcFfmpegConfigPage .gfNavButton.gfSub {
+                    padding-left: 1em;
+                }
+            }
+        </style>
+            <form class="grpcFfmpegConfigurationForm gfShell">
+                <div class="gfHeader">
+                    <h2 class="sectionTitle">gRPC-ffmpeg</h2>
+                    <span id="gfHeaderStatus" class="gfChip">Loading…</span>
+                </div>
 
-                    <div class="verticalSection">
+                <nav class="gfNav" aria-label="Settings sections">
+                    <button type="button" class="gfNavButton" data-section="status">Status</button>
+                    <button type="button" class="gfNavButton" data-section="workers">Workers</button>
+                    <button type="button" class="gfNavButton" data-section="fallback">Fallback</button>
+                    <button type="button" class="gfNavButton" data-section="classes">Hardware classes</button>
+                    <button type="button" class="gfNavButton gfSub gfClassOnly" data-section="intel" hidden>Intel QSV</button>
+                    <button type="button" class="gfNavButton gfSub gfClassOnly" data-section="nvidia" hidden>NVIDIA NVENC</button>
+                    <button type="button" class="gfNavButton" data-section="console">Console</button>
+                </nav>
+
+                <div class="gfContent">
+                    <section class="gfSection" data-section="status">
                         <h3 class="sectionTitle">Status</h3>
-                        <div id="grpcFfmpegStatus" class="fieldDescription">Loading…</div>
-                    </div>
+                        <p>Runs Jellyfin's ffmpeg and ffprobe commands on remote
+                                                <a is="emby-linkbutton" class="button-link" href="https://github.com/CrystalNET-org/grpc-ffmpeg" target="_blank">grpc-ffmpeg</a>
+                                                workers. The media library and Jellyfin's transcode, cache and temp directories must be available at the same paths on Jellyfin and on the workers; <em>Test</em> checks them.</p>
+                        <div id="grpcFfmpegStatus" class="fieldDescription" style="margin-bottom: 1.5em;">Loading…</div>
+                                                <div class="checkboxContainer checkboxContainer-withDescription">
+                                                    <label>
+                                                        <input is="emby-checkbox" type="checkbox" id="enabled" />
+                                                        <span>Use gRPC workers for ffmpeg</span>
+                                                    </label>
+                                                    <div class="fieldDescription checkboxFieldDescription">
+                                                        Takes effect after restarting Jellyfin. Test the workers first.
+                                                    </div>
+                                                </div>
+                    </section>
 
-                    <div class="verticalSection">
+                    <section class="gfSection" data-section="workers">
+                        <h3 class="sectionTitle">Workers</h3>
+                        <div class="inputContainer">
+                            <input type="text" id="grpcHost" is="emby-input" label="Host" />
+                            <div class="fieldDescription">Host name or IP address of the worker, service or load balancer.</div>
+                        </div>
+                        <div class="inputContainer">
+                            <input type="number" id="grpcPort" is="emby-input" label="Port" min="1" max="65535" />
+                        </div>
+                        <div class="inputContainer">
+                            <input type="password" id="authToken" is="emby-input" label="Authentication token" autocomplete="new-password" />
+                            <div class="fieldDescription">Must match the workers' VALID_TOKEN (all workers, also those of the hardware classes).</div>
+                        </div>
                         <div class="checkboxContainer checkboxContainer-withDescription">
                             <label>
-                                <input is="emby-checkbox" type="checkbox" id="enabled" />
-                                <span>Use gRPC workers for ffmpeg</span>
+                                <input is="emby-checkbox" type="checkbox" id="useSsl" />
+                                <span>Use TLS</span>
                             </label>
-                            <div class="fieldDescription checkboxFieldDescription">
-                                Takes effect after restarting Jellyfin. Test the workers first.
-                            </div>
+                        </div>
+                        <div class="inputContainer">
+                            <input type="text" id="certificatePath" is="emby-input" label="CA certificate path" />
+                            <div class="fieldDescription">Certificate used to verify the workers when TLS is enabled.</div>
                         </div>
                         <div>
-                            <button is="emby-button" type="submit" class="raised button-submit block"><span>Save</span></button>
+                            <button is="emby-button" type="button" class="raised block testButton" data-target="default"><span>Test</span></button>
                         </div>
-                        <div class="checkboxContainer checkboxContainer-withDescription" style="margin-top: 1.5em;">
-                            <label>
-                                <input is="emby-checkbox" type="checkbox" id="enableHardwareClasses" />
-                                <span>Experimental: spread playback sessions over several kinds of GPU</span>
-                            </label>
-                            <div class="fieldDescription checkboxFieldDescription">
-                                Each kind of GPU (Intel QSV, NVIDIA NVENC) is its own worker pool. A playback session keeps one
-                                class for its whole life, and its commands go to that class's workers. Library scans, trickplay,
-                                image extraction and Jellyfin's startup checks keep using Jellyfin's own transcoding settings and the
-                                default workers. Jellyfin's dashboard still shows its global settings. Turning this on or off takes
-                                effect after restarting Jellyfin.
-                            </div>
-                        </div>
-                        <div id="hardwareClassOptions" class="selectContainer" hidden>
-                            <select is="emby-select" id="defaultHardwareClass" label="Class for new playback sessions">
-                                <option value="auto">Automatic: by hardware decoding support and load</option>
-                                <option value="alternate">Take turns between the enabled classes</option>
-                                <option value="intel">Intel QSV</option>
-                                <option value="nvidia">NVIDIA NVENC</option>
-                                <option value="">None (Jellyfin's transcoding settings)</option>
-                            </select>
-                            <div class="fieldDescription">Automatic skips classes whose workers were just found unreachable,
-                                prefers classes that can decode the video in hardware, then the class with the fewest running
-                                transcodes per weight, then one that can encode the client's preferred codec.</div>
-                        </div>
-                    </div>
+                        <div class="fieldDescription">Tests the settings as entered here, also before saving them.</div>
+                        <div class="testResult fieldDescription" data-target="default" style="white-space: pre-wrap;"></div>
+                    </section>
 
-                    <div class="verticalSection">
-                        <div id="workerTabs" style="display: none; gap: 0.5em; margin-bottom: 1em;">
-                            <button is="emby-button" type="button" class="raised tabButton" data-tab="default"><span>Default</span></button>
-                            <button is="emby-button" type="button" class="raised tabButton" data-tab="intel"><span>Intel QSV</span></button>
-                            <button is="emby-button" type="button" class="raised tabButton" data-tab="nvidia"><span>NVIDIA NVENC</span></button>
-                        </div>
-                        <h3 class="sectionTitle" id="defaultTitle">Worker</h3>
-
-                        <div class="tabPanel" data-tab="default">
-                            <div class="inputContainer">
-                                <input type="text" id="grpcHost" is="emby-input" label="Host" />
-                                <div class="fieldDescription">Host name or IP address of the worker, service or load balancer.</div>
-                            </div>
-                            <div class="inputContainer">
-                                <input type="number" id="grpcPort" is="emby-input" label="Port" min="1" max="65535" />
-                            </div>
-                            <div class="inputContainer">
-                                <input type="password" id="authToken" is="emby-input" label="Authentication token" autocomplete="new-password" />
-                                <div class="fieldDescription">Must match the workers' VALID_TOKEN (all workers, also those of the hardware classes).</div>
-                            </div>
-                            <div class="checkboxContainer checkboxContainer-withDescription">
-                                <label>
-                                    <input is="emby-checkbox" type="checkbox" id="useSsl" />
-                                    <span>Use TLS</span>
-                                </label>
-                            </div>
-                            <div class="inputContainer">
-                                <input type="text" id="certificatePath" is="emby-input" label="CA certificate path" />
-                                <div class="fieldDescription">Certificate used to verify the workers when TLS is enabled.</div>
-                            </div>
-                            <div>
-                                <button is="emby-button" type="button" class="raised block testButton" data-target="default"><span>Test</span></button>
-                            </div>
-                            <div class="fieldDescription">Tests the settings as entered here, also before saving them.</div>
-                            <div class="testResult fieldDescription" data-target="default" style="white-space: pre-wrap;"></div>
-                        </div>
-
-                        <div class="tabPanel" data-tab="intel" hidden>
-                            <div id="intelStatus" class="fieldDescription" style="margin-bottom: 1em;"></div>
-                            <div class="checkboxContainer">
-                                <label>
-                                    <input is="emby-checkbox" type="checkbox" id="intelEnabled" />
-                                    <span>Use Intel QSV workers</span>
-                                </label>
-                            </div>
-                            <div class="inputContainer">
-                                <input type="text" id="intelGrpcHost" is="emby-input" label="Host" />
-                                <div class="fieldDescription">Host name or IP address of these workers, without the port.</div>
-                            </div>
-                            <div class="inputContainer">
-                                <input type="number" id="intelGrpcPort" is="emby-input" label="Port" min="1" max="65535" />
-                            </div>
-                            <div class="inputContainer">
-                                <input type="number" id="intelWeight" is="emby-input" label="Weight" min="1" max="100" />
-                                <div class="fieldDescription">Relative capacity of these workers, e.g. their total number of GPUs.</div>
-                            </div>
-                            <div class="inputContainer">
-                                <input type="text" id="intelDevice" is="emby-input" label="QSV device" />
-                                <div class="fieldDescription">Render node on the workers, e.g. /dev/dri/renderD128. Empty keeps Jellyfin's setting.</div>
-                            </div>
-                            <div class="checkboxContainer checkboxContainer-withDescription">
-                                <label>
-                                    <input is="emby-checkbox" type="checkbox" id="intelVc1" />
-                                    <span>VC-1 hardware decoding</span>
-                                </label>
-                                <div class="fieldDescription checkboxFieldDescription">The other codecs are detected on the workers; VC-1 cannot be tested.</div>
-                            </div>
-                            <div class="checkboxContainer">
-                                <label>
-                                    <input is="emby-checkbox" type="checkbox" id="intelEnableTonemapping" />
-                                    <span>Tone mapping (HDR to SDR)</span>
-                                </label>
-                            </div>
-                            <div class="fieldDescription">Decoding: <span id="intelDecoders"></span></div>
-                            <div class="fieldDescription" style="margin-bottom: 1em;">Encoding: <span id="intelEncoders"></span></div>
-                            <div>
-                                <button is="emby-button" type="button" class="raised block testButton" data-target="intel"><span>Test</span></button>
-                            </div>
-                            <div class="testResult fieldDescription" data-target="intel" style="white-space: pre-wrap;"></div>
-                        </div>
-
-                        <div class="tabPanel" data-tab="nvidia" hidden>
-                            <div id="nvidiaStatus" class="fieldDescription" style="margin-bottom: 1em;"></div>
-                            <div class="checkboxContainer">
-                                <label>
-                                    <input is="emby-checkbox" type="checkbox" id="nvidiaEnabled" />
-                                    <span>Use NVIDIA NVENC workers</span>
-                                </label>
-                            </div>
-                            <div class="inputContainer">
-                                <input type="text" id="nvidiaGrpcHost" is="emby-input" label="Host" />
-                                <div class="fieldDescription">Host name or IP address of these workers, without the port.</div>
-                            </div>
-                            <div class="inputContainer">
-                                <input type="number" id="nvidiaGrpcPort" is="emby-input" label="Port" min="1" max="65535" />
-                            </div>
-                            <div class="inputContainer">
-                                <input type="number" id="nvidiaWeight" is="emby-input" label="Weight" min="1" max="100" />
-                                <div class="fieldDescription">Relative capacity of these workers, e.g. their total number of GPUs.</div>
-                            </div>
-                            <div class="checkboxContainer checkboxContainer-withDescription">
-                                <label>
-                                    <input is="emby-checkbox" type="checkbox" id="nvidiaVc1" />
-                                    <span>VC-1 hardware decoding</span>
-                                </label>
-                                <div class="fieldDescription checkboxFieldDescription">The other codecs are detected on the workers; VC-1 cannot be tested.</div>
-                            </div>
-                            <div class="checkboxContainer">
-                                <label>
-                                    <input is="emby-checkbox" type="checkbox" id="nvidiaEnableTonemapping" />
-                                    <span>Tone mapping (HDR to SDR)</span>
-                                </label>
-                            </div>
-                            <div class="fieldDescription">Decoding: <span id="nvidiaDecoders"></span></div>
-                            <div class="fieldDescription" style="margin-bottom: 1em;">Encoding: <span id="nvidiaEncoders"></span></div>
-                            <div>
-                                <button is="emby-button" type="button" class="raised block testButton" data-target="nvidia"><span>Test</span></button>
-                            </div>
-                            <div class="testResult fieldDescription" data-target="nvidia" style="white-space: pre-wrap;"></div>
-                        </div>
-                    </div>
-
-                    <div class="verticalSection">
+                    <section class="gfSection" data-section="fallback">
                         <h3 class="sectionTitle">Fallback</h3>
                         <div class="checkboxContainer checkboxContainer-withDescription">
                             <label>
@@ -209,9 +229,124 @@
                         <div class="inputContainer">
                             <input type="number" id="connectTimeout" is="emby-input" label="Connection timeout (seconds)" min="1" max="60" />
                         </div>
-                    </div>
+                    </section>
 
-                    <div class="verticalSection">
+                    <section class="gfSection" data-section="classes">
+                        <h3 class="sectionTitle">Hardware classes (experimental)</h3>
+                        <div class="checkboxContainer checkboxContainer-withDescription">
+                            <label>
+                                <input is="emby-checkbox" type="checkbox" id="enableHardwareClasses" />
+                                <span>Experimental: spread playback sessions over several kinds of GPU</span>
+                            </label>
+                            <div class="fieldDescription checkboxFieldDescription">
+                                Each kind of GPU (Intel QSV, NVIDIA NVENC) is its own worker pool. A playback session keeps one
+                                class for its whole life, and its commands go to that class's workers. Library scans, trickplay,
+                                image extraction and Jellyfin's startup checks keep using Jellyfin's own transcoding settings and the
+                                default workers. Jellyfin's dashboard still shows its global settings. Turning this on or off takes
+                                effect after restarting Jellyfin.
+                            </div>
+                        </div>
+                        <div id="hardwareClassOptions" class="selectContainer" hidden>
+                            <select is="emby-select" id="defaultHardwareClass" label="Class for new playback sessions">
+                                <option value="auto">Automatic: by hardware decoding support and load</option>
+                                <option value="alternate">Take turns between the enabled classes</option>
+                                <option value="intel">Intel QSV</option>
+                                <option value="nvidia">NVIDIA NVENC</option>
+                                <option value="">None (Jellyfin's transcoding settings)</option>
+                            </select>
+                            <div class="fieldDescription">Automatic skips classes whose workers were just found unreachable,
+                                prefers classes that can decode the video in hardware, then the class with the fewest running
+                                transcodes per weight, then one that can encode the client's preferred codec.</div>
+                        </div>
+                    </section>
+
+                    <section class="gfSection" data-section="intel" hidden>
+                        <h3 class="sectionTitle">Intel QSV workers</h3>
+                        <div id="intelStatus" class="fieldDescription" style="margin-bottom: 1em;"></div>
+                        <div class="checkboxContainer">
+                            <label>
+                                <input is="emby-checkbox" type="checkbox" id="intelEnabled" />
+                                <span>Use Intel QSV workers</span>
+                            </label>
+                        </div>
+                        <div class="inputContainer">
+                            <input type="text" id="intelGrpcHost" is="emby-input" label="Host" />
+                            <div class="fieldDescription">Host name or IP address of these workers, without the port.</div>
+                        </div>
+                        <div class="inputContainer">
+                            <input type="number" id="intelGrpcPort" is="emby-input" label="Port" min="1" max="65535" />
+                        </div>
+                        <div class="inputContainer">
+                            <input type="number" id="intelWeight" is="emby-input" label="Weight" min="1" max="100" />
+                            <div class="fieldDescription">Relative capacity of these workers, e.g. their total number of GPUs.</div>
+                        </div>
+                        <div class="inputContainer">
+                            <input type="text" id="intelDevice" is="emby-input" label="QSV device" />
+                            <div class="fieldDescription">Render node on the workers, e.g. /dev/dri/renderD128. Empty keeps Jellyfin's setting.</div>
+                        </div>
+                        <div class="checkboxContainer checkboxContainer-withDescription">
+                            <label>
+                                <input is="emby-checkbox" type="checkbox" id="intelVc1" />
+                                <span>VC-1 hardware decoding</span>
+                            </label>
+                            <div class="fieldDescription checkboxFieldDescription">The other codecs are detected on the workers; VC-1 cannot be tested.</div>
+                        </div>
+                        <div class="checkboxContainer">
+                            <label>
+                                <input is="emby-checkbox" type="checkbox" id="intelEnableTonemapping" />
+                                <span>Tone mapping (HDR to SDR)</span>
+                            </label>
+                        </div>
+                        <div class="fieldDescription">Decoding: <span id="intelDecoders"></span></div>
+                        <div class="fieldDescription" style="margin-bottom: 1em;">Encoding: <span id="intelEncoders"></span></div>
+                        <div>
+                            <button is="emby-button" type="button" class="raised block testButton" data-target="intel"><span>Test</span></button>
+                        </div>
+                        <div class="testResult fieldDescription" data-target="intel" style="white-space: pre-wrap;"></div>
+                    </section>
+
+                    <section class="gfSection" data-section="nvidia" hidden>
+                        <h3 class="sectionTitle">NVIDIA NVENC workers</h3>
+                        <div id="nvidiaStatus" class="fieldDescription" style="margin-bottom: 1em;"></div>
+                        <div class="checkboxContainer">
+                            <label>
+                                <input is="emby-checkbox" type="checkbox" id="nvidiaEnabled" />
+                                <span>Use NVIDIA NVENC workers</span>
+                            </label>
+                        </div>
+                        <div class="inputContainer">
+                            <input type="text" id="nvidiaGrpcHost" is="emby-input" label="Host" />
+                            <div class="fieldDescription">Host name or IP address of these workers, without the port.</div>
+                        </div>
+                        <div class="inputContainer">
+                            <input type="number" id="nvidiaGrpcPort" is="emby-input" label="Port" min="1" max="65535" />
+                        </div>
+                        <div class="inputContainer">
+                            <input type="number" id="nvidiaWeight" is="emby-input" label="Weight" min="1" max="100" />
+                            <div class="fieldDescription">Relative capacity of these workers, e.g. their total number of GPUs.</div>
+                        </div>
+                        <div class="checkboxContainer checkboxContainer-withDescription">
+                            <label>
+                                <input is="emby-checkbox" type="checkbox" id="nvidiaVc1" />
+                                <span>VC-1 hardware decoding</span>
+                            </label>
+                            <div class="fieldDescription checkboxFieldDescription">The other codecs are detected on the workers; VC-1 cannot be tested.</div>
+                        </div>
+                        <div class="checkboxContainer">
+                            <label>
+                                <input is="emby-checkbox" type="checkbox" id="nvidiaEnableTonemapping" />
+                                <span>Tone mapping (HDR to SDR)</span>
+                            </label>
+                        </div>
+                        <div class="fieldDescription">Decoding: <span id="nvidiaDecoders"></span></div>
+                        <div class="fieldDescription" style="margin-bottom: 1em;">Encoding: <span id="nvidiaEncoders"></span></div>
+                        <div>
+                            <button is="emby-button" type="button" class="raised block testButton" data-target="nvidia"><span>Test</span></button>
+                        </div>
+                        <div class="testResult fieldDescription" data-target="nvidia" style="white-space: pre-wrap;"></div>
+                    </section>
+
+                    <section class="gfSection" data-section="console">
                         <h3 class="sectionTitle">Console</h3>
                         <div class="fieldDescription">Commands run through the client with their exit codes, the client's messages (retries, authentication errors, fallback) and the end of ffmpeg's error output for failed commands. Kept in memory only (last 1000 lines).</div>
                         <pre id="grpcFfmpegConsole" style="background: #111; color: #ddd; font-family: monospace; font-size: 12px; line-height: 1.4; height: 24em; overflow: auto; padding: 0.5em; margin: 0.5em 0; white-space: pre-wrap; word-break: break-all; border-radius: 4px;"></pre>
@@ -222,10 +357,14 @@
                             </label>
                             <button is="emby-button" type="button" id="consoleClear" class="raised"><span>Clear</span></button>
                         </div>
-                    </div>
+                    </section>
+                </div>
 
-                </form>
-            </div>
+                <div class="gfFooter">
+                    <span id="gfFooterMessage" class="gfFooterMessage"></span>
+                    <button is="emby-button" type="submit" class="raised button-submit gfSave"><span>Save</span></button>
+                </div>
+            </form>
         </div>
         <script type="text/javascript">
             (function () {
@@ -272,33 +411,71 @@
                 let lastStatus = {};
                 let lastConfig = {};
 
-                // Tabs: Default, and the hardware classes once that feature is ticked
-                let currentTab = 'default';
+                // Sections, picked in the navigation on the left; the class sections only
+                // while hardware classes are ticked
+                let currentSection = 'status';
 
-                function showTab(name) {
-                    currentTab = name;
-                    for (const panel of page.querySelectorAll('.tabPanel')) {
-                        panel.hidden = panel.getAttribute('data-tab') !== name;
+                function showSection(name) {
+                    const button = page.querySelector('.gfNavButton[data-section="' + name + '"]');
+                    if (!button || button.hidden) {
+                        name = 'status';
                     }
-                    for (const button of page.querySelectorAll('.tabButton')) {
-                        button.classList.toggle('button-submit', button.getAttribute('data-tab') === name);
+                    currentSection = name;
+                    for (const section of page.querySelectorAll('.gfSection')) {
+                        section.hidden = section.getAttribute('data-section') !== name;
+                    }
+                    for (const navButton of page.querySelectorAll('.gfNavButton')) {
+                        const active = navButton.getAttribute('data-section') === name;
+                        navButton.classList.toggle('gfActive', active);
+                        navButton.setAttribute('aria-current', active ? 'page' : 'false');
                     }
                 }
 
                 function updateClassVisibility() {
                     const on = $('#enableHardwareClasses').checked;
                     $('#hardwareClassOptions').hidden = !on;
-                    // Not the hidden attribute, which a display style overrides
-                    $('#workerTabs').style.display = on ? 'flex' : 'none';
-                    $('#defaultTitle').textContent = on ? 'Workers' : 'Worker';
-                    showTab(on ? currentTab : 'default');
+                    for (const button of page.querySelectorAll('.gfClassOnly')) {
+                        button.hidden = !on;
+                    }
+                    showSection(currentSection);
+                }
+
+                // The footer: unsaved changes, or the outcome of the last save
+                function setFooterMessage(text, state) {
+                    const message = $('#gfFooterMessage');
+                    message.textContent = text;
+                    message.setAttribute('data-state', state || '');
+                }
+
+                function updateHeaderStatus(status) {
+                    const chip = $('#gfHeaderStatus');
+                    let text;
+                    let state;
+                    if (!get(status, 'PlatformSupported')) {
+                        text = 'Unsupported platform';
+                        state = 'error';
+                    } else if (get(status, 'Fallback')) {
+                        text = 'Running on the local ffmpeg';
+                        state = 'error';
+                    } else if (get(status, 'RestartRequired')) {
+                        text = 'Restart required';
+                        state = 'warn';
+                    } else if (get(status, 'Active')) {
+                        text = 'Active';
+                        state = 'ok';
+                    } else {
+                        text = 'Inactive';
+                        state = '';
+                    }
+                    chip.textContent = text;
+                    chip.setAttribute('data-state', state);
                 }
 
                 function formatTime(value) {
                     return value ? new Date(value).toLocaleString() : '';
                 }
 
-                // A class tab's status: its workers' last check, and its sessions while active
+                // A class section's status: its workers' last check, and its sessions while active
                 function renderClassStatus(name) {
                     const settings = get(lastConfig, name === 'intel' ? 'IntelClass' : 'NvidiaClass') || {};
                     const checks = get(lastStatus, 'ClassChecks') || [];
@@ -350,6 +527,7 @@
                 function loadStatus() {
                     return api('GET', 'GrpcFfmpeg/Status', true).then(status => {
                         lastStatus = status;
+                        updateHeaderStatus(status);
                         classNames.forEach(renderClassStatus);
                         let text;
                         if (!get(status, 'PlatformSupported')) {
@@ -369,7 +547,7 @@
                         }
                         if (get(status, 'HardwareClassesActive')) {
                             text += '<br/>Hardware classes (experimental): ' + escapeHtml(get(status, 'ClassAddresses') || 'no class enabled')
-                                + '. Their tabs below show their workers.';
+                                + '. Their sections (Intel QSV, NVIDIA NVENC) show their workers.';
                             const classes = get(status, 'HardwareClasses') || {};
                             for (const warning of get(classes, 'Warnings') || []) {
                                 text += '<br/><span style="color: #fc6;">⚠ ' + escapeHtml(warning) + '</span>';
@@ -414,6 +592,7 @@
                         loadHardwareClass('intel', config.IntelClass || {});
                         loadHardwareClass('nvidia', config.NvidiaClass || {});
                         updateClassVisibility();
+                        setFooterMessage('', '');
                         return loadStatus();
                     }).finally(() => Dashboard.hideLoadingMsg());
                 }
@@ -587,27 +766,41 @@
                 $('.grpcFfmpegConfigurationForm').addEventListener('submit', function (e) {
                     e.preventDefault();
                     if (!$('#grpcHost').value.trim()) {
-                        showTab('default');
-                        Dashboard.alert('Enter the host of the workers.');
+                        showSection('workers');
+                        setFooterMessage('Enter the host of the workers.', 'error');
+                        $('#grpcHost').focus();
                         return false;
                     }
-                    Dashboard.showLoadingMsg();
+                    const save = page.querySelector('.gfSave');
+                    save.disabled = true;
+                    setFooterMessage('Saving…', '');
                     saveConfiguration()
                         .then(result => {
                             Dashboard.processPluginConfigurationUpdateResult(result);
+                            setFooterMessage('Saved at ' + new Date().toLocaleTimeString(), 'ok');
                             return ApiClient.getPluginConfiguration(pluginId);
                         })
                         .then(config => { lastConfig = config; return loadStatus(); })
-                        .catch(() => Dashboard.alert('Saving failed, see the server log.'))
-                        .finally(() => Dashboard.hideLoadingMsg());
+                        .catch(() => setFooterMessage('Saving failed, see the server log.', 'error'))
+                        .finally(() => { save.disabled = false; });
                     return false;
                 });
 
                 $('#enableHardwareClasses').addEventListener('change', updateClassVisibility);
 
-                for (const button of page.querySelectorAll('.tabButton')) {
-                    button.addEventListener('click', () => showTab(button.getAttribute('data-tab')));
+                for (const button of page.querySelectorAll('.gfNavButton')) {
+                    button.addEventListener('click', () => showSection(button.getAttribute('data-section')));
                 }
+
+                // Settings changed since loading or saving; the console's Live switch is no setting
+                const form = $('.grpcFfmpegConfigurationForm');
+                const markDirty = e => {
+                    if (e.target.id !== 'consoleFollow') {
+                        setFooterMessage('Unsaved changes', 'dirty');
+                    }
+                };
+                form.addEventListener('input', markDirty);
+                form.addEventListener('change', markDirty);
 
                 // Tests the values as entered, without saving them
                 for (const button of page.querySelectorAll('.testButton')) {
