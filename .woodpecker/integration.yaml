@@ -17,10 +17,11 @@ when:
   - event: [pull_request, manual, tag]
 
 matrix:
-  # Not updated by Renovate; add new Jellyfin releases here
+  # The latest minor release of each supported major version. Not updated by
+  # Renovate: replace an entry when a newer release of that major comes out
   JELLYFIN_IMAGE:
     - harbor.crystalnet.org/dockerhub-proxy/jellyfin/jellyfin:10.11.11
-    - harbor.crystalnet.org/dockerhub-proxy/jellyfin/jellyfin:12.1
+    - harbor.crystalnet.org/dockerhub-proxy/jellyfin/jellyfin:12.2
 
 steps:
   - name: build

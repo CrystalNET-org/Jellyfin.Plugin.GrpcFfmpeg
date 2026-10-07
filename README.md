@@ -94,6 +94,10 @@ folder in Jellyfin's `plugins` directory.
 
 ## Settings
 
+The settings page has its sections in a navigation on the left (*Status*, *Workers*,
+*Fallback*, *Hardware classes*, *Console*) and the **Save** button in a bar at the bottom,
+which stays visible while scrolling and shows unsaved changes.
+
 | Setting | Default | Description |
 | --- | --- | --- |
 | Host, Port | `ffmpeg-workers`, `50051` | Address of the worker, or of the Service or load balancer in front of the workers. |
@@ -112,8 +116,8 @@ All settings except the last apply to the next command, without a restart.
 Jellyfin supports one hardware acceleration type, so all workers behind one address need the
 same kind of GPU. With **hardware classes** (off by default; turning it on or off needs a
 restart), one Jellyfin uses an Intel QSV pool and an NVIDIA NVENC pool at the same time, each
-behind its own address. Ticking it on the settings page shows the class settings, with a tab
-each for the default workers, Intel QSV and NVIDIA NVENC:
+behind its own address. Ticking it in the settings page's *Hardware classes* section shows the
+class settings, and an *Intel QSV* and an *NVIDIA NVENC* section in its navigation:
 
 - Each new playback session gets a class when Jellyfin first reads its transcoding settings
   (after authentication). With the default **Automatic** policy:
@@ -150,7 +154,7 @@ each for the default workers, Intel QSV and NVIDIA NVENC:
   reached, or whose GPU doesn't work, leave the settings as they were, and so does a decoding
   test that can't even decode H.264.
 - Tone mapping is on by default for each class, as the class's settings replace Jellyfin's.
-- Each class's tab shows its workers' last check and, while active, its sessions and routed
+- Each class's section shows its workers' last check and, while active, its sessions and routed
   commands. Its **Test** button checks the workers as entered: that they answer, which codecs
   their GPU decodes and encodes, and that they share the transcode directory and can read the
   media.
@@ -159,7 +163,7 @@ Limitations: only QSV and NVENC (no VAAPI/AMD classes). Jellyfin's dashboard sti
 global settings. Unreachable workers are only noticed through failed commands (with the
 fallback enabled), and a running transcode is not moved. The feature
 depends on Jellyfin reading the transcoding settings for each request, which is true for
-10.11 and 12.1 but is not a public API.
+10.11, 12.1 and 12.2 but is not a public API.
 
 ## How it works
 
