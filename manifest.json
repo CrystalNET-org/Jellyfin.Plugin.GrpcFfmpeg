@@ -9,6 +9,14 @@
     "imageUrl": "https://raw.githubusercontent.com/CrystalNET-org/Jellyfin.Plugin.GrpcFfmpeg/main/images/thumb.png",
     "versions": [
       {
+        "version": "0.3.5.0",
+        "changelog": "- README: screenshots of the new settings page [CI SKIP]\n- CI: test the latest release of each Jellyfin major version\n- Settings page: section navigation and a save bar, like Intro Skipper's\n- README: shares must be mounted identically; mangled SMB names",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/CrystalNET-org/Jellyfin.Plugin.GrpcFfmpeg/releases/download/0.3.5/gRPC-ffmpeg_0.3.5.0.zip",
+        "checksum": "4f7970f94b623697c79f825abce30e66",
+        "timestamp": "2026-10-07T11:03:58Z"
+      },
+      {
         "version": "0.3.4.0",
         "changelog": "- Hardware classes: detect GPU decoding; tone mapping on by default\n- Settings page: tabs per worker pool, tests without saving, detected encoders",
         "targetAbi": "10.11.0.0",
